@@ -235,10 +235,10 @@ impl notedeck::App for ZapStreamApp {
                 let tx = Transaction::new(ctx.ndb).expect("transaction");
                 let wide = ui.available_width() >= crate::theme::WIDE_BREAKPOINT;
                 let active = match &self.current {
-                    RouteType::HomePage => "Streams",
-                    RouteType::VideosPage => "Videos",
-                    RouteType::ShortsPage => "Shorts",
-                    RouteType::CategoriesPage | RouteType::CategoryPage { .. } => "Categories",
+                    RouteType::HomePage => "streams",
+                    RouteType::VideosPage => "videos",
+                    RouteType::ShortsPage => "shorts",
+                    RouteType::CategoriesPage | RouteType::CategoryPage { .. } => "categories",
                     _ => "",
                 };
                 ui.vertical(|ui| {

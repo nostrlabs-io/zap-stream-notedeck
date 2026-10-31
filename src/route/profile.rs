@@ -72,7 +72,7 @@ impl NostrWidget for ProfilePage {
                                 ui.spacing_mut().item_spacing.y = 8.0;
                                 let name = profile
                                     .and_then(|p| p.display_name().or(p.name()))
-                                    .unwrap_or("Nostrich")
+                                    .unwrap_or(crate::i18n::t("common.anon"))
                                     .to_string();
                                 ui.add(
                                     Label::new(theme::display(
@@ -82,7 +82,7 @@ impl NostrWidget for ProfilePage {
                                     .wrap_mode(TextWrapMode::Wrap),
                                 );
                                 if is_live {
-                                    ui.add(Pill::new("Live").color(PRIMARY));
+                                    ui.add(Pill::new(crate::i18n::t("status.live")).color(PRIMARY));
                                 }
                                 if let Some(nip05) = profile.and_then(|p| p.nip05()) {
                                     if !nip05.is_empty() {
@@ -119,7 +119,7 @@ impl NostrWidget for ProfilePage {
                             if !is_me && can_sign {
                                 let following =
                                     contacts::is_following(&services.own_contact_tags(), &hex);
-                                let label = if following { "Unfollow" } else { "Follow" };
+                                let label = if following { crate::i18n::t("button.unfollow") } else { crate::i18n::t("button.follow") };
                                 let btn = if following { Button::new() } else { Button::primary() };
                                 if btn.text(ui, label).clicked() {
                                     services.set_following(&self.pubkey, !following);
@@ -130,7 +130,7 @@ impl NostrWidget for ProfilePage {
                                 .ok()
                                 .and_then(|k| k.to_bech32().ok())
                                 .unwrap_or_default();
-                            let copy_label = if self.copied { "Copied" } else { "Copy npub" };
+                            let copy_label = if self.copied { crate::i18n::t("button.copied") } else { crate::i18n::t("button.copy_npub") };
                             if Button::new().text(ui, copy_label).clicked() {
                                 ui.ctx().copy_text(npub);
                                 self.copied = true;
@@ -141,8 +141,8 @@ impl NostrWidget for ProfilePage {
                         let followers = self.followers.len();
                         ui.horizontal(|ui| {
                             ui.spacing_mut().item_spacing.x = 48.0;
-                            Self::stat(ui, followers, "Followers");
-                            Self::stat(ui, count, "Past streams");
+                            Self::stat(ui, followers, crate::i18n::t("profile.followers"));
+                            Self::stat(ui, count, crate::i18n::t("profile.past_streams"));
                         });
 
                         let events: Vec<Note> = self

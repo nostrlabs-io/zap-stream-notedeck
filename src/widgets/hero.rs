@@ -69,7 +69,7 @@ impl<'a> Hero<'a> {
         let mut y = rect.max.y - pad;
 
         let button_galley = painter.layout_no_wrap(
-            "Watch stream".to_string(),
+            crate::i18n::t("button.watch_stream").to_string(),
             egui::FontId::new(16.0, theme::medium_family()),
             ON_PRIMARY,
         );
@@ -91,10 +91,10 @@ impl<'a> Hero<'a> {
         let host = services
             .profile(self.event.host())
             .and_then(|p| p.name())
-            .unwrap_or("Nostrich")
+            .unwrap_or(crate::i18n::t("common.anon"))
             .to_string();
         let meta = painter.layout_no_wrap(
-            format!("{}   {} watching", host, viewers),
+            crate::i18n::tf("home.watching", &[("host", &host), ("n", &viewers.to_string())]),
             egui::FontId::new(16.0, egui::FontFamily::Proportional),
             TEXT_SOFT,
         );
@@ -105,7 +105,7 @@ impl<'a> Hero<'a> {
         let title_size = if narrow { 26.0 } else { 46.08 };
         let title_width = if narrow { w - pad * 2.0 } else { (w * 0.55).max(200.0) };
         let title = painter.layout(
-            self.event.title().unwrap_or("Untitled").to_string(),
+            self.event.title().unwrap_or(crate::i18n::t("common.untitled")).to_string(),
             egui::FontId::new(title_size, theme::display_family()),
             TEXT,
             title_width,
@@ -114,7 +114,7 @@ impl<'a> Hero<'a> {
         painter.galley(pos2(rect.min.x + pad, y), title, Color32::PLACEHOLDER);
 
         let live = painter.layout_no_wrap(
-            "Live now".to_string(),
+            crate::i18n::t("home.live_now").to_string(),
             egui::FontId::new(14.0, theme::medium_family()),
             TEXT,
         );

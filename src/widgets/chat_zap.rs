@@ -31,7 +31,7 @@ impl<'a> ChatZap<'a> {
 
                     let name = self
                         .profile
-                        .map_or("Nostrich", |f| f.name().map_or("Nostrich", |f| f));
+                        .map_or(crate::i18n::t("common.anon"), |f| f.name().map_or(crate::i18n::t("common.anon"), |f| f));
 
                     let mut format = TextFormat::default();
                     format.line_height = Some(24.0);

@@ -66,7 +66,7 @@ impl Header {
                             let profile = services.profile(pubkey.bytes());
                             let name = profile
                                 .and_then(|p| p.display_name().or(p.name()))
-                                .unwrap_or("Nostrich")
+                                .unwrap_or(crate::i18n::t("common.anon"))
                                 .to_string();
                             let mut action = None;
                             egui::Popup::menu(&avatar)
@@ -83,11 +83,11 @@ impl Header {
                                         .color(MUTED),
                                     );
                                     ui.separator();
-                                    if Button::new().text(ui, "Profile").clicked() {
+                                    if Button::new().text(ui, crate::i18n::t("button.profile")).clicked() {
                                         action = Some("profile");
                                         ui.close();
                                     }
-                                    if Button::new().text(ui, "Logout").clicked() {
+                                    if Button::new().text(ui, crate::i18n::t("button.logout")).clicked() {
                                         action = Some("logout");
                                         ui.close();
                                     }
@@ -107,7 +107,7 @@ impl Header {
                             let clicked = ui
                                 .scope(|ui| {
                                     ui.set_height(34.0);
-                                    Button::primary().text(ui, "Login").clicked()
+                                    Button::primary().text(ui, crate::i18n::t("button.login")).clicked()
                                 })
                                 .inner;
                             if clicked {
@@ -134,7 +134,7 @@ impl Header {
                                         TextEdit::singleline(&mut query)
                                             .frame(egui::Frame::NONE)
                                             .hint_text(
-                                                theme::semibold("Search", theme::FONT_SIZE)
+                                                theme::semibold(crate::i18n::t("common.search"), theme::FONT_SIZE)
                                                     .color(MUTED),
                                             )
                                             .desired_width(f32::INFINITY),
@@ -154,7 +154,7 @@ impl Header {
                         } else {
                             let r = ui
                                 .add(
-                                    egui::Label::new(theme::semibold("Search", 15.0).color(MUTED))
+                                    egui::Label::new(theme::semibold(crate::i18n::t("common.search"), 15.0).color(MUTED))
                                         .sense(Sense::click()),
                                 )
                                 .on_hover_and_drag_cursor(CursorIcon::PointingHand);

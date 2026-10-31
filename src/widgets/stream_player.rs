@@ -172,9 +172,9 @@ impl StreamPlayer {
             Some(VideoState::Error(_)) | Some(VideoState::Ended)
         );
         let text = if failed && self.attempts >= 3 {
-            "Stream unavailable, retrying"
+            crate::i18n::t("player.unavailable")
         } else {
-            "Reconnecting"
+            crate::i18n::t("player.reconnecting")
         };
         let g = ui.painter().layout_no_wrap(
             text.into(),
