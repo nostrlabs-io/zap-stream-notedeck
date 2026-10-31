@@ -1,0 +1,16 @@
+common.anon=Anon
+status.live=ÎN DIRECT
+status.planned=PLANIFICATE
+status.ended=TERMINAT
+list.live=În direct
+list.planned=Planificate
+list.ended=Încheiat
+list.following=În urma
+button.login=Autentificare
+button.logout=Ieșire
+button.follow=Urmați
+button.unfollow=Unfollow
+button.share=Share
+profile.past_streams=Fluxuri trecute
+button.open_wallet=Deschide în portofel
+button.zap=Zap

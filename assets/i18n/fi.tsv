@@ -1,0 +1,16 @@
+common.anon=Anon
+status.live=LIVE
+status.planned=SUUNNITELTU
+status.ended=ENDED
+list.live=Live
+list.planned=Suunniteltu
+list.ended=Päättynyt
+list.following=Seuraa
+button.login=Kirjaudu sisään
+button.logout=Kirjaudu ulos
+button.follow=Seuraa
+button.unfollow=Älä seuraa
+button.share=Jaa
+profile.past_streams=Aikaisemmat lähetykset
+button.open_wallet=Avaa lompakossa
+button.zap=Zap

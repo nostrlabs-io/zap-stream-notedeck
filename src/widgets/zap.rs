@@ -67,7 +67,7 @@ impl<'a> ZapButton<'a> {
 
     pub fn render(self, ui: &mut Ui, services: &mut RouteServices) -> Response {
         let can_sign = services.can_sign();
-        let resp = Button::pill().disabled(!can_sign).text(ui, "Zap");
+        let resp = Button::pill().disabled(!can_sign).text(ui, crate::i18n::t("button.zap"));
         let open_id = egui::Id::new("zap_modal_open");
         if !can_sign {
             return resp.on_hover_text("Log in with a private key to zap");
@@ -171,7 +171,7 @@ impl<'a> ZapButton<'a> {
                             if Button::new().text(ui, "Copy invoice").clicked() {
                                 ui.ctx().copy_text(invoice.pr.clone());
                             }
-                            if Button::primary().text(ui, "Open wallet").clicked() {
+                            if Button::primary().text(ui, crate::i18n::t("button.open_wallet")).clicked() {
                                 ui.ctx().open_url(egui::OpenUrl::same_tab(format!(
                                     "lightning:{}",
                                     invoice.pr
@@ -303,7 +303,7 @@ impl<'a> ZapButton<'a> {
             .with_frame(true)
             .ui(ui);
 
-        if Button::primary().radius(255).padding(egui::Margin::symmetric(24, 10)).text(ui, "Zap").clicked() {
+        if Button::primary().radius(255).padding(egui::Margin::symmetric(24, 10)).text(ui, crate::i18n::t("button.zap")).clicked() {
             // on-click setup callback URL and transition state
             match self.zap_callback(
                 services,

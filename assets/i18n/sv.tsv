@@ -1,0 +1,16 @@
+common.anon=Anno
+status.live=LIVE
+status.planned=PLANERADE
+status.ended=AVSLUTAD
+list.live=Live
+list.planned=Planerade
+list.ended=Avslutade
+list.following=Följer
+button.login=Logga in
+button.logout=Logga ut
+button.follow=Följ
+button.unfollow=Sluta följa
+button.share=Dela
+profile.past_streams=Tidigare streamar
+button.open_wallet=Öppna i plånboken
+button.zap=Zap

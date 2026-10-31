@@ -25,27 +25,27 @@ impl Sidebar {
     fn rows(&self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
         let items = [
             Item {
-                label: "Streams",
+                label: crate::i18n::t("nav.streams"),
                 icon: include_bytes!("../resources/icons/signal.svg"),
-                active: self.active == "Streams",
+                active: self.active == "streams",
                 route: Some(RouteType::HomePage),
             },
             Item {
-                label: "Videos",
+                label: crate::i18n::t("nav.videos"),
                 icon: include_bytes!("../resources/icons/play.svg"),
-                active: self.active == "Videos",
+                active: self.active == "videos",
                 route: Some(RouteType::VideosPage),
             },
             Item {
-                label: "Shorts",
+                label: crate::i18n::t("nav.shorts"),
                 icon: include_bytes!("../resources/icons/film.svg"),
-                active: self.active == "Shorts",
+                active: self.active == "shorts",
                 route: Some(RouteType::ShortsPage),
             },
             Item {
-                label: "Categories",
+                label: crate::i18n::t("nav.categories"),
                 icon: include_bytes!("../resources/icons/grid.svg"),
-                active: self.active == "Categories",
+                active: self.active == "categories",
                 route: Some(RouteType::CategoriesPage),
             },
         ];

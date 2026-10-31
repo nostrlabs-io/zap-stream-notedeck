@@ -89,7 +89,7 @@ impl NostrWidget for SearchPage {
                         }
 
                         if self.query.is_empty() {
-                            ui.label(theme::medium("Enter a search term", 15.0).color(MUTED));
+                            ui.label(theme::medium(crate::i18n::t("search.prompt"), 15.0).color(MUTED));
                             return;
                         }
 
@@ -167,7 +167,7 @@ impl NostrWidget for SearchPage {
                         }
                         Self::heading(ui, "Streams");
                         if events.is_empty() {
-                            ui.label(theme::medium("No streams found", 15.0).color(MUTED));
+                            ui.label(theme::medium(crate::i18n::t("listing.empty"), 15.0).color(MUTED));
                         }
                         StreamList::new(
                             Id::new("search-streams"),

@@ -1,0 +1,16 @@
+common.anon=Anon
+status.live=CANLI
+status.planned=PLANLANMIŞ
+status.ended=SONLANDI
+list.live=Canlı
+list.planned=Planlanmış
+list.ended=Bitti
+list.following=Aşağıdaki
+button.login=Giriş
+button.logout=Oturum Kapatma
+button.follow=Takip et
+button.unfollow=Takibi bırak
+button.share=Paylaş
+profile.past_streams=Geçmiş Akışlar
+button.open_wallet=Cüzdanda Aç
+button.zap=Zap

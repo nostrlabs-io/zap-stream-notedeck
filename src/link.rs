@@ -5,7 +5,7 @@ use nostr::{Kind, PublicKey};
 use nostrdb::{Filter, NdbStrVariant, Note};
 use std::fmt::{Display, Formatter};
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct NostrLink {
     pub hrp: NostrLinkType,
     pub id: IdOrStr,
@@ -14,7 +14,7 @@ pub struct NostrLink {
     pub relays: Vec<String>,
 }
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum IdOrStr {
     Id([u8; 32]),
     Str(String),
@@ -38,7 +38,7 @@ impl Display for IdOrStr {
     }
 }
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum NostrLinkType {
     Note,
     PublicKey,

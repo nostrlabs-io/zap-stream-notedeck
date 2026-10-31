@@ -27,7 +27,7 @@ impl<'a> StreamTitle<'a> {
                 ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
                     ui.add(
                         Label::new(theme::display(
-                            self.event.title().unwrap_or("Untitled"),
+                            self.event.title().unwrap_or(crate::i18n::t("common.untitled")),
                             size,
                         ))
                         .wrap_mode(TextWrapMode::Wrap),
@@ -44,7 +44,7 @@ impl<'a> StreamTitle<'a> {
                         .render(ui, services.ctx);
                     let name = profile
                         .and_then(|p| p.display_name().or(p.name()))
-                        .unwrap_or("Nostrich")
+                        .unwrap_or(crate::i18n::t("common.anon"))
                         .to_string();
                     ui.label(theme::semibold(name, 16.0).color(TEXT));
                     ui.add_space(8.0);
@@ -54,7 +54,7 @@ impl<'a> StreamTitle<'a> {
                         let hex = nostr::prelude::hex::encode(host);
                         let following = contacts::is_following(&services.own_contact_tags(), &hex);
                         let btn = if following { Button::new() } else { Button::primary() };
-                        let label = if following { "Unfollow" } else { "Follow" };
+                        let label = if following { crate::i18n::t("button.unfollow") } else { crate::i18n::t("button.follow") };
                         if btn.text(ui, label).clicked() {
                             services.set_following(&host, !following);
                         }
@@ -64,7 +64,7 @@ impl<'a> StreamTitle<'a> {
                     if let Some(url) = self.event.share_url() {
                         let id = ui.id().with("share-copied");
                         let copied = ui.data(|d| d.get_temp::<bool>(id)).unwrap_or(false);
-                        let label = if copied { "Link copied" } else { "Share" };
+                        let label = if copied { crate::i18n::t("button.link_copied") } else { crate::i18n::t("button.share") };
                         if Button::new().text(ui, label).clicked() {
                             ui.ctx().copy_text(url);
                             ui.data_mut(|d| d.insert_temp(id, true));

@@ -1,0 +1,16 @@
+common.anon=Anon
+status.live=LIVE
+status.planned=PLANLAGT
+status.ended=AFSLUTTET
+list.live=Live
+list.planned=Planlagt
+list.ended=Afsluttet
+list.following=Efterfølgende
+button.login=Login
+button.logout=Log ud
+button.follow=Følg med
+button.unfollow=Ikke følge
+button.share=Del
+profile.past_streams=Tidligere strømme
+button.open_wallet=Åbn i tegnebogen
+button.zap=Zap

@@ -114,7 +114,7 @@ impl NostrWidget for ListingPage {
                             .filter(|n| self.kind.keep(n))
                             .collect();
                         if events.is_empty() {
-                            ui.label(theme::medium("No streams found", 15.0).color(MUTED));
+                            ui.label(theme::medium(crate::i18n::t("listing.empty"), 15.0).color(MUTED));
                         }
                         StreamList::new(
                             Id::new(self.kind.id()),

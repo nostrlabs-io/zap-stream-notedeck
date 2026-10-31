@@ -1,0 +1,16 @@
+common.anon=Anonyme
+status.live=VIVRE
+status.planned=PRÉVU
+status.ended=FINI
+list.live=En direct
+list.planned=Planifié
+list.ended=Terminé
+list.following=Abonnements
+button.login=Se Connecter
+button.logout=Se déconnecter
+button.follow=Suivre
+button.unfollow=Ne plus suivre
+button.share=Partager
+profile.past_streams=Streams passés
+button.open_wallet=Ouvrir dans le portefeuille
+button.zap=Zap

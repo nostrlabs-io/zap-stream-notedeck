@@ -34,7 +34,9 @@
  */
 package stream.zap.app
 
+import android.content.Intent
 import android.os.Bundle
+import java.io.File
 import android.util.Log
 import android.view.WindowManager
 import android.view.View
@@ -70,7 +72,20 @@ class MainActivity : GameActivity() {
         LuminaVideo.init(this)
         setupInsets()
         super.onCreate(savedInstanceState)
+        handleLink(intent)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleLink(intent)
+    }
+
+    private fun handleLink(intent: Intent?) {
+        val data = intent?.data?.toString() ?: return
+        val dir = File(filesDir, "settings")
+        dir.mkdirs()
+        File(dir, "pending_link").writeText(data)
     }
 
     private fun setupInsets() {

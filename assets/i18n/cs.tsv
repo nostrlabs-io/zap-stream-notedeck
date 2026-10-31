@@ -1,0 +1,16 @@
+common.anon=Anon
+status.live=LIVE
+status.planned=PLÁNOVANÉ
+status.ended=KONEC
+list.live=Živě
+list.planned=Plánované
+list.ended=Ukončeno
+list.following=Po
+button.login=Přihlášení
+button.logout=Odhlášení
+button.follow=Sledujte
+button.unfollow=Zrušit sledování
+button.share=Sdílet
+profile.past_streams=Minulé proudy
+button.open_wallet=Otevřít v peněžence
+button.zap=Zap
