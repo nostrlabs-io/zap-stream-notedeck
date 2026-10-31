@@ -30,6 +30,8 @@ pub struct ZapStreamApp {
     render_state: Option<egui_wgpu::RenderState>,
     relay_health: crate::relay_health::RelayHealth,
     locale_loaded: bool,
+    last_link_poll: std::time::Instant,
+    startup_url: Option<String>,
 }
 
 impl ZapStreamApp {
@@ -50,6 +52,8 @@ impl ZapStreamApp {
             render_state,
             relay_health: Default::default(),
             locale_loaded: false,
+            last_link_poll: std::time::Instant::now(),
+            startup_url: startup_url(),
             app,
         }
     }
@@ -76,6 +80,8 @@ impl ZapStreamApp {
             render_state,
             relay_health: Default::default(),
             locale_loaded: false,
+            last_link_poll: std::time::Instant::now(),
+            startup_url: startup_url(),
         }
     }
 
@@ -92,6 +98,33 @@ impl ZapStreamApp {
         }
     }
 
+    fn poll_deep_links(&mut self, ctx: &AppContext<'_>) {
+        let mut link = self
+            .startup_url
+            .take()
+            .and_then(|u| crate::deep_link::parse(&u));
+        if link.is_none() && self.last_link_poll.elapsed() >= std::time::Duration::from_millis(500) {
+            self.last_link_poll = std::time::Instant::now();
+            link = crate::deep_link::take_pending(&ctx.path.path(notedeck::DataPathType::Setting));
+        }
+        match link {
+            Some(crate::deep_link::DeepLink::Stream(link)) => {
+                self.widget = Box::new(page::StreamPage::new_from_link(
+                    link.clone(),
+                    self.render_state.clone(),
+                ));
+                self.current = RouteType::EventPage { link, event: None };
+            }
+            Some(crate::deep_link::DeepLink::Profile(pk)) => {
+                self.widget = Box::new(page::ProfilePage::new(pk));
+                self.current = RouteType::ProfilePage {
+                    link: crate::link::NostrLink::profile(&pk),
+                };
+            }
+            None => {}
+        }
+    }
+
     fn setup_fonts(&mut self, ctx: &egui::Context) {
         if self.fonts_set {
             return;
@@ -99,6 +132,14 @@ impl ZapStreamApp {
         self.fonts_set = true;
         crate::theme::install_fonts(ctx);
     }
+}
+
+fn startup_url() -> Option<String> {
+    std::env::var("ZAP_STREAM_URL").ok().or_else(|| {
+        std::env::args()
+            .skip(1)
+            .find(|a| crate::deep_link::parse(a).is_some())
+    })
 }
 
 fn startup_link_from_env() -> Option<crate::link::NostrLink> {
@@ -176,6 +217,8 @@ impl notedeck::App for ZapStreamApp {
             ));
             self.current = RouteType::EventPage { link, event: None };
         }
+
+        self.poll_deep_links(ctx);
 
         let released = crate::sub::take_released();
         if !released.is_empty() {

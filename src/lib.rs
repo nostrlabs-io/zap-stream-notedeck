@@ -2,6 +2,7 @@
 mod android;
 pub mod app;
 mod contacts;
+mod deep_link;
 mod frame_stats;
 mod hls;
 mod i18n;
