@@ -270,6 +270,7 @@ impl StreamPlayer {
             return;
         };
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(video_rect));
+        child.set_clip_rect(video_rect.intersect(ui.clip_rect()));
         p.show(&mut child, video_rect.size());
         let _ = fullscreen;
 
