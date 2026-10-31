@@ -28,6 +28,8 @@ pub struct ZapStreamApp {
     startup_link: Option<crate::link::NostrLink>,
     startup_page: Option<String>,
     render_state: Option<egui_wgpu::RenderState>,
+    relay_health: crate::relay_health::RelayHealth,
+    locale_loaded: bool,
 }
 
 impl ZapStreamApp {
@@ -46,6 +48,8 @@ impl ZapStreamApp {
             startup_link: startup_link_from_env(),
             startup_page: None,
             render_state,
+            relay_health: Default::default(),
+            locale_loaded: false,
             app,
         }
     }
@@ -70,6 +74,21 @@ impl ZapStreamApp {
             startup_link: startup_link_from_env(),
             startup_page: None,
             render_state,
+            relay_health: Default::default(),
+            locale_loaded: false,
+        }
+    }
+
+    fn load_locale(&mut self, ctx: &AppContext<'_>) {
+        if self.locale_loaded {
+            return;
+        }
+        self.locale_loaded = true;
+        let dir = ctx.path.path(notedeck::DataPathType::Setting);
+        let code = crate::i18n::load_saved(&dir)
+            .or_else(|| crate::i18n::detect_system_locale().map(str::to_string));
+        if let Some(code) = code {
+            crate::i18n::set_locale(&code);
         }
     }
 
@@ -105,6 +124,7 @@ fn profiles_sub_identity() -> ScopedSubIdentity {
 impl notedeck::App for ZapStreamApp {
     fn render(&mut self, ctx: &mut AppContext<'_>, ui: &mut Ui) -> AppResponse {
         self.setup_fonts(ui.ctx());
+        self.load_locale(ctx);
         crate::theme::apply_style(ui.ctx());
         if let Some(s) = self.frame_stats.as_mut() {
             s.tick();
@@ -171,6 +191,11 @@ impl notedeck::App for ZapStreamApp {
                     RouteAction::DemandProfile(p) => {
                         self.profiles.demand(p);
                     }
+                    RouteAction::SetLocale(code) => {
+                        crate::i18n::set_locale(&code);
+                        let dir = ctx.path.path(notedeck::DataPathType::Setting);
+                        crate::i18n::save(&dir, &code);
+                    }
                     RouteAction::SelectAccount(pk) => {
                         ctx.select_account(&pk);
                     }
@@ -227,6 +252,14 @@ impl notedeck::App for ZapStreamApp {
             }
         }
 
+        let (connected, connecting) = crate::relay_health::count(ctx);
+        let health = self
+            .relay_health
+            .observe(connected, connecting, std::time::Instant::now());
+        if health != crate::relay_health::Health::Online {
+            ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
+        }
+
         let app_frame = egui::containers::Frame::default().outer_margin(self.frame_margin());
         let egui_ctx = ui.ctx().clone();
         egui::CentralPanel::default()
@@ -254,6 +287,7 @@ impl notedeck::App for ZapStreamApp {
                         let _t = crate::frame_stats::Section::start("header");
                         Header::new().render(ui, &mut svc, &tx);
                     }
+                    crate::widgets::relay_banner(ui, health);
                     {
                         let _t = crate::frame_stats::Section::start("update");
                         if let Err(e) = self.widget.update(&mut svc) {

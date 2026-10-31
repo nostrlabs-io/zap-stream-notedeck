@@ -17,6 +17,35 @@ fn is_fallback(pk: &enostr::Pubkey) -> bool {
 pub struct Header;
 
 impl Header {
+    fn language_picker(ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
+        let current = crate::i18n::current_code();
+        let button = ui
+            .add(
+                egui::Label::new(theme::semibold(current.to_uppercase(), 13.0).color(MUTED))
+                    .sense(Sense::click()),
+            )
+            .on_hover_and_drag_cursor(CursorIcon::PointingHand);
+        let mut chosen = None;
+        egui::Popup::menu(&button)
+            .id(egui::Id::new("language-menu"))
+            .show(|ui| {
+                ui.set_min_width(160.0);
+                for (code, name) in crate::i18n::LOCALES {
+                    let active = *code == current;
+                    let text = theme::medium(*name, 14.0).color(if active { PRIMARY } else { TEXT });
+                    if ui.add(egui::Button::new(text).frame(false)).clicked() {
+                        chosen = Some(code.to_string());
+                        ui.close();
+                    }
+                }
+            });
+        if let Some(code) = chosen {
+            services.action(crate::route::RouteAction::SetLocale(code));
+        }
+    }
+}
+
+impl Header {
     pub fn new() -> Self {
         Self {}
     }
@@ -115,6 +144,7 @@ impl Header {
                             }
                         }
 
+                        Self::language_picker(ui, services);
                         if wide {
                             let w = (ui.available_width() - 32.0).clamp(0.0, 410.0);
                             let qid = egui::Id::new("search-query");

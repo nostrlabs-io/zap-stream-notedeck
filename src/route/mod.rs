@@ -59,6 +59,7 @@ pub enum RouteAction {
     DemandProfile([u8; 32]),
     SelectAccount(enostr::Pubkey),
     Logout(enostr::Pubkey),
+    SetLocale(String),
 }
 
 pub struct RouteServices<'a, 'ctx> {
