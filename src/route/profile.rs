@@ -125,6 +125,13 @@ impl NostrWidget for ProfilePage {
                                     services.set_following(&self.pubkey, !following);
                                 }
                             }
+                            if !is_me && can_sign {
+                                let muted = services.is_muted(&self.pubkey);
+                                let label = if muted { crate::i18n::t("button.unmute") } else { crate::i18n::t("button.mute") };
+                                if Button::new().text(ui, label).clicked() {
+                                    services.set_muted(&self.pubkey, !muted);
+                                }
+                            }
                             ZapButton::pubkey(self.pubkey).render(ui, services);
                             let npub = PublicKey::from_slice(&self.pubkey)
                                 .ok()

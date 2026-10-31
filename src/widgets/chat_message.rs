@@ -49,14 +49,24 @@ impl<'a> ChatMessage<'a> {
             format.color = Color32::WHITE;
             job.append(self.ev.content(), 5.0, format.clone());
 
-            if Avatar::from_profile(self.profile)
+            let avatar = Avatar::from_profile(self.profile)
                 .size(24.)
-                .render(ui, services.ctx)
-                .clicked()
-            {
+                .render(ui, services.ctx);
+            if avatar.clicked() {
                 services.navigate(RouteType::ProfilePage {
                     link: NostrLink::profile(self.ev.pubkey()),
                 })
+            }
+            if services.can_sign() && self.ev.pubkey() != services.ctx.accounts.get_selected_account().key.pubkey.bytes() {
+                let author = *self.ev.pubkey();
+                let muted = services.is_muted(&author);
+                avatar.context_menu(|ui| {
+                    let label = if muted { crate::i18n::t("button.unmute") } else { crate::i18n::t("button.mute") };
+                    if ui.button(label).clicked() {
+                        services.set_muted(&author, !muted);
+                        ui.close();
+                    }
+                });
             }
             ui.add(Label::new(job).wrap_mode(TextWrapMode::Wrap));
 

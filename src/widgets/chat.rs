@@ -141,6 +141,9 @@ impl NostrWidget for Chat {
                     let rect = ui
                         .scope(|ui| match ev.kind() {
                             1311 => {
+                                if services.is_muted(ev.pubkey()) {
+                                    return;
+                                }
                                 let profile = services.profile(ev.pubkey());
                                 ChatMessage::new(&stream, &ev, &profile).render(ui, services);
                             }
