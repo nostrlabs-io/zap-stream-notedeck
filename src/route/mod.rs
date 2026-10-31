@@ -7,6 +7,7 @@ use enostr::RelayId;
 use lnurl::lightning_address::LightningAddress;
 use lnurl::pay::PayResponse;
 use log::{info, warn};
+use nostr::prelude::hex;
 use nostr::{serde_json, Event, EventBuilder, JsonUtil, Keys, Kind, Tag};
 use nostrdb::{NdbProfile, NoteKey, Transaction};
 use notedeck::media::AnimationMode;
@@ -162,18 +163,80 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
         }
     }
 
-    pub fn write_live_chat_msg(&self, link: &NostrLink, msg: &str) -> Option<Event> {
+    pub fn write_live_chat_msg(
+        &self,
+        link: &NostrLink,
+        msg: &str,
+        emoji: Vec<Vec<String>>,
+    ) -> Option<Event> {
         if msg.is_empty() {
             return None;
         }
-        if let Some(key) = self.current_account_keys() {
-            EventBuilder::new(Kind::LiveEventMessage, msg)
-                .tag(Tag::parse(link.to_tag()).unwrap())
-                .sign_with_keys(&key)
-                .ok()
-        } else {
-            None
+        let key = self.current_account_keys()?;
+        let mut builder = EventBuilder::new(Kind::LiveEventMessage, msg)
+            .tag(Tag::parse(link.to_tag()).unwrap());
+        for t in emoji {
+            if let Ok(tag) = Tag::parse(t) {
+                builder = builder.tag(tag);
+            }
         }
+        builder.sign_with_keys(&key).ok()
+    }
+
+    pub fn react(
+        &mut self,
+        target: &[u8; 32],
+        author: &[u8; 32],
+        content: &str,
+        emoji_url: Option<&str>,
+    ) {
+        let Some(key) = self.current_account_keys() else {
+            return;
+        };
+        let mut builder = EventBuilder::new(Kind::Reaction, content)
+            .tag(Tag::parse(["e".to_string(), hex::encode(target)]).unwrap())
+            .tag(Tag::parse(["p".to_string(), hex::encode(author)]).unwrap());
+        if let (Some(url), Some(name)) = (emoji_url, content.strip_prefix(':').and_then(|c| c.strip_suffix(':'))) {
+            builder = builder.tag(
+                Tag::parse(["emoji".to_string(), name.to_string(), url.to_string()]).unwrap(),
+            );
+        }
+        if let Ok(ev) = builder.sign_with_keys(&key) {
+            self.broadcast_event(ev);
+        }
+    }
+
+    pub fn timeout_user(&mut self, user: &[u8; 32], secs: u64) {
+        let Some(key) = self.current_account_keys() else {
+            return;
+        };
+        let expiry = nostr::Timestamp::now().as_u64() + secs;
+        let builder = EventBuilder::new(Kind::Custom(1314), "")
+            .tag(Tag::parse(["p".to_string(), hex::encode(user)]).unwrap())
+            .tag(Tag::parse(["expiration".to_string(), expiry.to_string()]).unwrap());
+        if let Ok(ev) = builder.sign_with_keys(&key) {
+            self.broadcast_event(ev);
+        }
+    }
+
+    pub fn publish_mute_list(&mut self, tags: Vec<Vec<String>>, content: &str) {
+        let Some(key) = self.current_account_keys() else {
+            return;
+        };
+        let mut builder = EventBuilder::new(Kind::MuteList, content);
+        for t in tags {
+            if let Ok(tag) = Tag::parse(t) {
+                builder = builder.tag(tag);
+            }
+        }
+        if let Ok(ev) = builder.sign_with_keys(&key) {
+            self.broadcast_event(ev);
+        }
+    }
+
+    pub fn me(&self) -> Option<[u8; 32]> {
+        self.current_account_keys()
+            .map(|k| k.public_key().to_bytes())
     }
 
     pub fn current_account_keys(&self) -> Option<Keys> {

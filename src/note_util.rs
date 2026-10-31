@@ -3,6 +3,7 @@ use nostrdb::{NdbStr, Note, Tag};
 
 pub trait NoteUtil {
     fn id_hex(&self) -> String;
+    fn tags_vec(&self) -> Vec<Vec<String>>;
     fn get_tag_value(&self, key: &str) -> Option<NdbStr>;
     fn find_tag_value<F>(&self, fx: F) -> Option<NdbStr>
     where
@@ -12,6 +13,20 @@ pub trait NoteUtil {
 impl NoteUtil for Note<'_> {
     fn id_hex(&self) -> String {
         hex::encode(self.id())
+    }
+
+    fn tags_vec(&self) -> Vec<Vec<String>> {
+        self.tags()
+            .iter()
+            .map(|t| {
+                TagIterBorrow::new(&t)
+                    .map(|v| match v.variant() {
+                        nostrdb::NdbStrVariant::Id(id) => hex::encode(id),
+                        nostrdb::NdbStrVariant::Str(s) => s.to_string(),
+                    })
+                    .collect()
+            })
+            .collect()
     }
 
     fn get_tag_value(&self, key: &str) -> Option<NdbStr> {

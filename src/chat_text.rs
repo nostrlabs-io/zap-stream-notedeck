@@ -34,6 +34,18 @@ pub enum EmbedTarget {
     Coordinate(u32, [u8; 32], String),
 }
 
+impl EmbedTarget {
+    pub fn key(&self) -> String {
+        match self {
+            EmbedTarget::Event(id) => id.iter().map(|b| format!("{:02x}", b)).collect(),
+            EmbedTarget::Coordinate(k, pk, d) => {
+                let hex: String = pk.iter().map(|b| format!("{:02x}", b)).collect();
+                format!("{}:{}:{}", k, hex, d)
+            }
+        }
+    }
+}
+
 pub fn embed_target(bech: &str) -> Option<EmbedTarget> {
     match Nip19::from_bech32(bech).ok()? {
         Nip19::EventId(id) => Some(EmbedTarget::Event(id.to_bytes())),

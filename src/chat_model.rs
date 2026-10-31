@@ -137,22 +137,52 @@ pub fn toggle_mute_tags(mut tags: Vec<Vec<String>>, who: &str, mute: bool) -> Ve
     tags
 }
 
+pub fn emoji_from_tags(tags: &[Vec<String>]) -> Vec<(String, String)> {
+    tags.iter()
+        .filter(|t| t.len() > 2 && t[0] == "emoji" && !t[1].is_empty() && !t[2].is_empty())
+        .map(|t| (t[1].clone(), t[2].clone()))
+        .collect()
+}
+
+pub fn emoji_set_refs(tags: &[Vec<String>]) -> Vec<String> {
+    tags.iter()
+        .filter(|t| t.len() > 1 && t[0] == "a" && t[1].starts_with("30030:"))
+        .map(|t| t[1].clone())
+        .collect()
+}
+
+pub fn message_emoji_tags(msg: &str, picked: &HashMap<String, String>) -> Vec<Vec<String>> {
+    let mut names: Vec<&String> = picked
+        .keys()
+        .filter(|n| msg.contains(&format!(":{}:", n)))
+        .collect();
+    names.sort();
+    names
+        .into_iter()
+        .map(|n| vec!["emoji".to_string(), n.clone(), picked[n].clone()])
+        .collect()
+}
+
 pub fn is_auto_raid(created_at: u64, now: u64) -> bool {
     created_at.abs_diff(now) < 60
+}
+
+pub fn hex_pk(s: &str) -> Option<Pubkey> {
+    if s.len() != 64 || !s.is_ascii() {
+        return None;
+    }
+    let mut out = [0u8; 32];
+    for (i, b) in out.iter_mut().enumerate() {
+        *b = u8::from_str_radix(&s[i * 2..i * 2 + 2], 16).ok()?;
+    }
+    Some(out)
 }
 
 pub fn split_coordinate(coord: &str) -> Option<(u32, Pubkey, String)> {
     let mut it = coord.splitn(3, ':');
     let kind: u32 = it.next()?.parse().ok()?;
-    let pk = it.next()?;
+    let out = hex_pk(it.next()?)?;
     let d = it.next()?.to_string();
-    if pk.len() != 64 {
-        return None;
-    }
-    let mut out = [0u8; 32];
-    for (i, b) in out.iter_mut().enumerate() {
-        *b = u8::from_str_radix(&pk[i * 2..i * 2 + 2], 16).ok()?;
-    }
     Some((kind, out, d))
 }
 
@@ -280,6 +310,35 @@ mod tests {
         let muted = toggle_mute_tags(muted, "ab", true);
         assert_eq!(muted.iter().filter(|t| t[0] == "p").count(), 1);
         assert_eq!(toggle_mute_tags(muted, "ab", false), base);
+    }
+
+    #[test]
+    fn emoji_tags_extract_and_skip_malformed() {
+        let tags = vec![
+            vec!["emoji".into(), "a".into(), "https://x/a.png".into()],
+            vec!["emoji".into(), "b".into()],
+            vec!["t".into(), "c".into(), "d".into()],
+        ];
+        assert_eq!(emoji_from_tags(&tags), vec![("a".to_string(), "https://x/a.png".to_string())]);
+    }
+
+    #[test]
+    fn emoji_set_refs_only_take_30030() {
+        let tags = vec![
+            vec!["a".into(), "30030:aa:set".into()],
+            vec!["a".into(), "30311:aa:live".into()],
+        ];
+        assert_eq!(emoji_set_refs(&tags), vec!["30030:aa:set".to_string()]);
+    }
+
+    #[test]
+    fn message_only_tags_emoji_it_uses() {
+        let picked = HashMap::from([
+            ("fire".to_string(), "https://x/f.png".to_string()),
+            ("ice".to_string(), "https://x/i.png".to_string()),
+        ]);
+        let tags = message_emoji_tags("hot :fire: take", &picked);
+        assert_eq!(tags, vec![vec!["emoji".to_string(), "fire".into(), "https://x/f.png".into()]]);
     }
 
     #[test]
