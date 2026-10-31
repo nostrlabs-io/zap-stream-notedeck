@@ -69,36 +69,10 @@ impl LoginPage {
 
 impl LoginPage {
     fn try_login(&mut self, services: &mut RouteServices<'_, '_>) {
-        let input = self.key.trim().to_string();
-        if let Ok((hrp, key)) = bech32::decode(&input) {
-            match hrp.to_lowercase().as_str() {
-                "nsec" => {
-                    if let Ok(sk) = SecretKey::from_slice(key.as_slice()) {
-                        self.add_and_select(services, enostr::Keypair::from_secret(sk));
-                        return;
-                    }
-                }
-                "npub" | "nprofile" => {
-                    if let Ok(pk) = key.as_slice().try_into() {
-                        self.add_and_select(
-                            services,
-                            enostr::Keypair::only_pubkey(enostr::Pubkey::new(pk)),
-                        );
-                        return;
-                    }
-                }
-                _ => {}
-            }
-        } else if let Ok(pk) = hex::decode(&input) {
-            if let Ok(pk) = pk.as_slice().try_into() {
-                self.add_and_select(
-                    services,
-                    enostr::Keypair::only_pubkey(enostr::Pubkey::new(pk)),
-                );
-                return;
-            }
+        match parse_key(&self.key) {
+            Some(kp) => self.add_and_select(services, kp),
+            None => self.error = Some("Invalid key".to_string()),
         }
-        self.error = Some("Invalid key".to_string());
     }
 
     fn round_icon(ui: &mut Ui, glyph: &str) -> bool {
@@ -410,5 +384,61 @@ impl NostrWidget for LoginPage {
 
     fn update(&mut self, _services: &mut RouteServices<'_, '_>) -> anyhow::Result<()> {
         Ok(())
+    }
+}
+
+pub fn parse_key(input: &str) -> Option<enostr::Keypair> {
+    let input = input.trim();
+    if let Ok((hrp, key)) = bech32::decode(input) {
+        return match hrp.to_lowercase().as_str() {
+            "nsec" => SecretKey::from_slice(key.as_slice())
+                .ok()
+                .map(enostr::Keypair::from_secret),
+            "npub" | "nprofile" => key
+                .as_slice()
+                .try_into()
+                .ok()
+                .map(|pk| enostr::Keypair::only_pubkey(enostr::Pubkey::new(pk))),
+            _ => None,
+        };
+    }
+    let bytes = hex::decode(input).ok()?;
+    let pk: [u8; 32] = bytes.as_slice().try_into().ok()?;
+    Some(enostr::Keypair::only_pubkey(enostr::Pubkey::new(pk)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_key;
+    use nostr::ToBech32;
+
+    #[test]
+    fn nsec_gives_signing_keypair() {
+        let keys = nostr::Keys::generate();
+        let nsec = keys.secret_key().to_bech32().unwrap();
+        let kp = parse_key(&format!("  {nsec}\n")).unwrap();
+        assert!(kp.secret_key.is_some());
+        assert_eq!(kp.pubkey.hex(), keys.public_key().to_hex());
+    }
+
+    #[test]
+    fn npub_gives_read_only_keypair() {
+        let keys = nostr::Keys::generate();
+        let kp = parse_key(&keys.public_key().to_bech32().unwrap()).unwrap();
+        assert!(kp.secret_key.is_none());
+        assert_eq!(kp.pubkey.hex(), keys.public_key().to_hex());
+    }
+
+    #[test]
+    fn hex_pubkey_is_read_only() {
+        let keys = nostr::Keys::generate();
+        let kp = parse_key(&keys.public_key().to_hex()).unwrap();
+        assert!(kp.secret_key.is_none());
+    }
+
+    #[test]
+    fn garbage_is_rejected() {
+        assert!(parse_key("hello").is_none());
+        assert!(parse_key("").is_none());
     }
 }
