@@ -239,6 +239,7 @@ impl Chat {
         if self.top.is_empty() {
             return;
         }
+        ui.add_space(4.0);
         egui::ScrollArea::horizontal()
             .id_salt("chat-top-zappers")
             .auto_shrink([false, true])
@@ -246,6 +247,8 @@ impl Chat {
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing.x = 12.0;
+                    ui.add_space(12.0);
+                    ui.set_min_height(24.0);
                     for (pk, sats) in self.top.clone() {
                         let profile = services.profile(&pk);
                         crate::widgets::Avatar::from_profile(&profile)
@@ -258,7 +261,7 @@ impl Chat {
                     }
                 });
             });
-        ui.add_space(6.0);
+        ui.add_space(8.0);
     }
 }
 

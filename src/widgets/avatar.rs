@@ -82,11 +82,13 @@ impl Avatar {
                 image_from_cache(ctx.img_cache, ctx.media_jobs.sender(), ui, &i, Some(size))
             })
         {
-            Some(img) => img
-                .fit_to_exact_size(size)
-                .corner_radius(size_v / 2.0)
-                .sense(Sense::click())
-                .ui(ui),
+            Some(img) => {
+                let (rect, response) = ui.allocate_exact_size(size, Sense::click());
+                img.fit_to_exact_size(size)
+                    .corner_radius(size_v / 2.0)
+                    .paint_at(ui, rect);
+                response
+            }
             None => Self::placeholder(ui, size_v),
         }
     }

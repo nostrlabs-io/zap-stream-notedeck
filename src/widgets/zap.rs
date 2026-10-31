@@ -72,7 +72,10 @@ impl<'a> ZapButton<'a> {
         if !can_sign {
             return resp.on_hover_text("Log in with a private key to zap");
         }
-        if resp.clicked() {
+        if resp.clicked() || std::env::var_os("ZAP_STREAM_DEBUG_ZAP").is_some_and(|_| {
+            std::env::remove_var("ZAP_STREAM_DEBUG_ZAP");
+            true
+        }) {
             ui.ctx().data_mut(|d| d.insert_temp(open_id, true));
         }
         let open = ui.ctx().data(|d| d.get_temp::<bool>(open_id)).unwrap_or(false);
@@ -88,7 +91,7 @@ impl<'a> ZapButton<'a> {
                 .inner_margin(egui::Margin::same(24)),
         );
         let modal_resp = modal.show(ui.ctx(), |ui| {
-            ui.set_width(360.0);
+            ui.set_width(360.0_f32.min((ui.ctx().content_rect().width() - 64.0).max(200.0)));
             ui.spacing_mut().item_spacing = vec2(8.0, 8.0);
 
             let pubkey = match &self.target {
@@ -299,9 +302,15 @@ impl<'a> ZapButton<'a> {
         let mut zap_comment = services.get("zap_comment").unwrap_or(String::new());
         ui.label(crate::theme::medium(format!("Your comment for {}", target_name), 14.0).color(crate::theme::MUTED));
         let old_len = zap_comment.len();
-        NativeTextInput::new(&mut zap_comment)
-            .with_frame(true)
-            .ui(ui);
+        Frame::new()
+            .stroke(egui::Stroke::new(1.0, crate::theme::BORDER))
+            .corner_radius(ROUNDING_DEFAULT)
+            .show(ui, |ui| {
+                NativeTextInput::new(&mut zap_comment)
+                    .with_hint_text("Optional comment")
+                    .with_frame(true)
+                    .ui(ui)
+            });
 
         if Button::primary().radius(255).padding(egui::Margin::symmetric(24, 10)).text(ui, crate::i18n::t("button.zap")).clicked() {
             // on-click setup callback URL and transition state

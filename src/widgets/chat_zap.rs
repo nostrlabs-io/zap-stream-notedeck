@@ -31,7 +31,7 @@ impl<'a> ChatZap<'a> {
 
                     let name = self
                         .profile
-                        .map_or(crate::i18n::t("common.anon"), |f| f.name().map_or(crate::i18n::t("common.anon"), |f| f));
+                        .map_or(crate::i18n::t("common.anon"), |f| f.display_name().filter(|n| !n.is_empty()).or(f.name()).map_or(crate::i18n::t("common.anon"), |f| f));
 
                     let mut format = TextFormat::default();
                     format.line_height = Some(24.0);
@@ -57,6 +57,7 @@ impl<'a> ChatZap<'a> {
                     Avatar::from_profile(self.profile)
                         .size(24.)
                         .render(ui, ctx);
+                    ui.add_space(4.0);
                     ui.add(Label::new(job).wrap_mode(TextWrapMode::Wrap));
 
                     // consume reset of space
