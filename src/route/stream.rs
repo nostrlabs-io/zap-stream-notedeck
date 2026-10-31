@@ -8,7 +8,9 @@ use egui::{vec2, Align, Frame, Layout, Response, ScrollArea, Stroke, Ui, Vec2, W
 use nostrdb::{Filter, Note};
 
 use crate::note_ref::NoteRef;
-use crate::stream_info::StreamInfo;
+use crate::player_health::{format_countdown, playback_for, Playback};
+use crate::stream_info::{StreamInfo, StreamStatus};
+use crate::widgets::stream_player::{paint_state_card, PlayerInfo};
 use crate::sub::SubRef;
 use std::borrow::Borrow;
 use std::collections::HashSet;
@@ -37,6 +39,54 @@ impl StreamPage {
         }
     }
 
+    fn video(&mut self, ui: &mut Ui, rect: egui::Rect, event: &Note<'_>) {
+        let playback = playback_for(
+            &event.status(),
+            event.streaming().is_some(),
+            event.recording().is_some(),
+        );
+        match playback {
+            Playback::Play => {
+                if self.player.is_none() {
+                    if let Some(u) = event.streaming().or(event.recording()) {
+                        self.player = Some(StreamPlayer::new(self.render_state.as_ref(), u));
+                    }
+                }
+                let live = event.status() == StreamStatus::Live;
+                let info = PlayerInfo {
+                    live,
+                    started: Some(event.starts()),
+                    viewers: event.viewers(),
+                };
+                match &mut self.player {
+                    Some(player) => player.show_controlled(ui, rect, &info),
+                    None => {
+                        ui.put(rect, PlaceholderRect);
+                    }
+                }
+            }
+            Playback::NotStarted => {
+                self.player = None;
+                let now = now_secs();
+                let detail = match event.starts().checked_sub(now) {
+                    Some(left) if left > 0 => format!("Starts in {}", format_countdown(left)),
+                    _ => "Starting soon".to_string(),
+                };
+                paint_state_card(ui, rect, "Stream not started", &detail);
+                ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
+            }
+            Playback::Offline => {
+                self.player = None;
+                let title = if event.status() == StreamStatus::Ended {
+                    "Stream ended"
+                } else {
+                    "Stream offline"
+                };
+                paint_state_card(ui, rect, title, "Check back later");
+            }
+        }
+    }
+
     fn get_filters(&self) -> Vec<Filter> {
         let f: Filter = self.link.borrow().try_into().unwrap();
         vec![f.limit_mut(1)]
@@ -59,13 +109,8 @@ impl StreamPage {
                 ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
                 let video_h = (w / 16.0) * 9.0;
                 let (rect, _) = ui.allocate_exact_size(vec2(w, video_h), egui::Sense::hover());
-                let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect));
-                if let Some(player) = &mut self.player {
-                    let _t = crate::frame_stats::Section::start("player");
-                    child.add_sized(rect.size(), player);
-                } else {
-                    child.add_sized(rect.size(), PlaceholderRect);
-                }
+                let _t = crate::frame_stats::Section::start("player");
+                self.video(ui, rect, event);
 
                 let info_h = (h - video_h) * 0.38;
                 ScrollArea::vertical()
@@ -164,12 +209,7 @@ impl StreamPage {
                             vec2(video_width, video_height),
                             egui::Sense::hover(),
                         );
-                        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect));
-                        if let Some(player) = &mut self.player {
-                            child.add_sized(rect.size(), player);
-                        } else {
-                            child.add_sized(rect.size(), PlaceholderRect);
-                        }
+                        self.video(ui, rect, event);
                         ui.add_space(14.);
                         StreamTitle::new(event).render(ui, services);
                     });
@@ -197,18 +237,6 @@ impl NostrWidget for StreamPage {
             .collect();
 
         if let Some(event) = events.first() {
-            if self.player.is_none() {
-                match event.kind() {
-                    30_311 => {
-                        if let Some(u) = event.streaming().or(event.recording()) {
-                            let p = StreamPlayer::new(self.render_state.as_ref(), &u.to_string());
-                            self.player = Some(p);
-                        }
-                    }
-                    _ => {}
-                };
-            }
-
             if self.chat.is_none() {
                 let ok = event.key().unwrap();
                 let chat = Chat::new(self.link.clone(), ok);
@@ -239,4 +267,11 @@ impl NostrWidget for StreamPage {
         }
         Ok(())
     }
+}
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }

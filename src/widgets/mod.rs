@@ -7,6 +7,7 @@ mod header;
 mod hero;
 mod pill;
 mod placeholder_rect;
+mod player_controls;
 mod profile;
 mod sidebar;
 mod stream_list;

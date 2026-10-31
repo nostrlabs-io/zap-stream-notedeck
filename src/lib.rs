@@ -3,6 +3,8 @@ mod android;
 pub mod app;
 mod contacts;
 mod frame_stats;
+mod hls;
+mod player_health;
 pub mod relays;
 mod link;
 mod note_ref;
