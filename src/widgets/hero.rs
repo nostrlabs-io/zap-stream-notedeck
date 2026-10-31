@@ -65,7 +65,8 @@ impl<'a> Hero<'a> {
             egui::StrokeKind::Inside,
         );
 
-        let pad = 28.0;
+        let stacked = w < 900.0;
+        let pad = if w < 560.0 { 18.0 } else { 28.0 };
         let mut y = rect.max.y - pad;
 
         let button_galley = painter.layout_no_wrap(
@@ -73,12 +74,13 @@ impl<'a> Hero<'a> {
             egui::FontId::new(16.0, theme::medium_family()),
             ON_PRIMARY,
         );
+        let btn_size = vec2(button_galley.size().x + 32.0, button_galley.size().y + 20.0);
         let btn = Rect::from_min_size(
             pos2(
-                rect.max.x - pad - (button_galley.size().x + 32.0),
-                rect.max.y - pad - (button_galley.size().y + 20.0),
+                if stacked { rect.min.x + pad } else { rect.max.x - pad - btn_size.x },
+                rect.max.y - pad - btn_size.y,
             ),
-            vec2(button_galley.size().x + 32.0, button_galley.size().y + 20.0),
+            btn_size,
         );
         painter.rect_filled(btn, CornerRadius::same(12), PRIMARY);
         painter.galley(
@@ -86,6 +88,9 @@ impl<'a> Hero<'a> {
             button_galley,
             Color32::PLACEHOLDER,
         );
+        if stacked {
+            y = btn.min.y - 12.0;
+        }
 
         let viewers = self.event.viewers().unwrap_or(0);
         let host = services
@@ -93,24 +98,33 @@ impl<'a> Hero<'a> {
             .and_then(|p| p.name())
             .unwrap_or(crate::i18n::t("common.anon"))
             .to_string();
-        let meta = painter.layout_no_wrap(
+        let meta_width = if stacked { w - pad * 2.0 } else { (w - pad * 2.0 - btn_size.x - 16.0).max(120.0) };
+        let mut meta_job = egui::text::LayoutJob::single_section(
             crate::i18n::tf("home.watching", &[("host", &host), ("n", &viewers.to_string())]),
-            egui::FontId::new(16.0, egui::FontFamily::Proportional),
-            TEXT_SOFT,
+            egui::TextFormat::simple(egui::FontId::new(16.0, egui::FontFamily::Proportional), TEXT_SOFT),
         );
+        meta_job.wrap.max_width = meta_width;
+        meta_job.wrap.max_rows = 1;
+        let meta = painter.layout_job(meta_job);
         y -= meta.size().y;
         painter.galley(pos2(rect.min.x + pad, y), meta, Color32::PLACEHOLDER);
 
-        let narrow = w < 560.0;
-        let title_size = if narrow { 26.0 } else { 46.08 };
-        let title_width = if narrow { w - pad * 2.0 } else { (w * 0.55).max(200.0) };
-        let title = painter.layout(
+        let title_size = if w < 560.0 {
+            24.0
+        } else if stacked {
+            34.0
+        } else {
+            46.08
+        };
+        let title_width = if stacked { w - pad * 2.0 } else { (w * 0.55).max(200.0) };
+        let mut title_job = egui::text::LayoutJob::single_section(
             self.event.title().unwrap_or(crate::i18n::t("common.untitled")).to_string(),
-            egui::FontId::new(title_size, theme::display_family()),
-            TEXT,
-            title_width,
+            egui::TextFormat::simple(egui::FontId::new(title_size, theme::display_family()), TEXT),
         );
-        y -= title.size().y + 6.0;
+        title_job.wrap.max_width = title_width;
+        title_job.wrap.max_rows = 2;
+        let title = painter.layout_job(title_job);
+        y -= title.size().y + 8.0;
         painter.galley(pos2(rect.min.x + pad, y), title, Color32::PLACEHOLDER);
 
         let live = painter.layout_no_wrap(

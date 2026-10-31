@@ -163,7 +163,7 @@ impl HomePage {
         let selected: usize = ui.ctx().data(|d| d.get_temp(sel_id)).unwrap_or(0);
         let mut clicked = None;
         let width = ui.available_width();
-        egui::ScrollArea::horizontal()
+        let area = egui::ScrollArea::horizontal()
             .id_salt("category-tabs")
             .max_width(width)
             .auto_shrink([false, true])
@@ -191,6 +191,20 @@ impl HomePage {
             }
         });
             });
+        let overflow = area.content_size.x - area.inner_rect.width();
+        if overflow > 1.0 && area.state.offset.x < overflow - 1.0 {
+            let r = area.inner_rect;
+            let fade = egui::Rect::from_min_max(egui::pos2(r.right() - 40.0, r.top()), r.right_bottom());
+            let clear = theme::BG.gamma_multiply(0.0);
+            let mut mesh = egui::epaint::Mesh::default();
+            mesh.colored_vertex(fade.left_top(), clear);
+            mesh.colored_vertex(fade.right_top(), theme::BG);
+            mesh.colored_vertex(fade.right_bottom(), theme::BG);
+            mesh.colored_vertex(fade.left_bottom(), clear);
+            mesh.add_triangle(0, 1, 2);
+            mesh.add_triangle(0, 2, 3);
+            ui.painter().add(egui::epaint::Shape::mesh(mesh));
+        }
         let y = ui.cursor().top() - 4.0;
         ui.painter().hline(
             ui.max_rect().x_range(),
@@ -313,7 +327,7 @@ impl NostrWidget for HomePage {
                                     );
                                 });
                             } else {
-                                let h = w * 0.5625;
+                                let h = (w * 0.5625).clamp(300.0, 440.0);
                                 let p = self.preview.as_mut().map(|(_, p)| p);
                                 Hero::new(top).render(ui, services, h, p);
                                 if total > 0 {

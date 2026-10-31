@@ -191,11 +191,26 @@ impl Header {
                                 ui.ctx().data_mut(|d| d.insert_temp(qid, query));
                             }
                         } else {
-                            let r = ui
-                                .add(
-                                    egui::Label::new(theme::semibold(crate::i18n::t("common.search"), 15.0).color(MUTED))
-                                        .sense(Sense::click()),
-                                )
+                            let r = ui.scope(|ui| {
+                                ui.set_height(34.0);
+                                Frame::new()
+                                .fill(SURFACE_LOW)
+                                .stroke(Stroke::new(1.0, BORDER))
+                                .corner_radius(12)
+                                .inner_margin(Margin::symmetric(12, 6))
+                                .show(ui, |ui| {
+                                    ui.add(
+                                        egui::Label::new(
+                                            theme::semibold(crate::i18n::t("common.search"), 14.0)
+                                                .color(MUTED),
+                                        )
+                                        .selectable(false),
+                                    )
+                                })
+                                .response
+                            })
+                                .response
+                                .interact(Sense::click())
                                 .on_hover_and_drag_cursor(CursorIcon::PointingHand);
                             if r.clicked() {
                                 services.navigate(RouteType::SearchPage {
