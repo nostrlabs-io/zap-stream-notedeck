@@ -176,6 +176,10 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
         }
     }
 
+    pub fn can_sign(&self) -> bool {
+        self.current_account_keys().is_some()
+    }
+
     pub fn current_account_keys(&self) -> Option<Keys> {
         self.ctx
             .accounts

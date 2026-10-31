@@ -57,8 +57,12 @@ impl<'a> ZapButton<'a> {
     }
 
     pub fn render(self, ui: &mut Ui, services: &mut RouteServices) -> Response {
-        let resp = Button::pill().text(ui, "Zap");
+        let can_sign = services.can_sign();
+        let resp = Button::pill().disabled(!can_sign).text(ui, "Zap");
         let open_id = egui::Id::new("zap_modal_open");
+        if !can_sign {
+            return resp.on_hover_text("Log in with a private key to zap");
+        }
         if resp.clicked() {
             ui.ctx().data_mut(|d| d.insert_temp(open_id, true));
         }
