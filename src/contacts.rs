@@ -11,6 +11,14 @@ pub fn with_follow(mut tags: Vec<Vec<String>>, pubkey_hex: &str, follow: bool) -
     tags
 }
 
+pub fn is_muted(tags: &[Vec<String>], pubkey_hex: &str) -> bool {
+    is_following(tags, pubkey_hex)
+}
+
+pub fn with_mute(tags: Vec<Vec<String>>, pubkey_hex: &str, mute: bool) -> Vec<Vec<String>> {
+    with_follow(tags, pubkey_hex, mute)
+}
+
 pub fn tags_from_note(note: &nostrdb::Note<'_>) -> Vec<Vec<String>> {
     note.tags()
         .iter()
@@ -55,5 +63,16 @@ mod tests {
         let out = with_follow(vec![p("a"), p("b")], "b", false);
         assert_eq!(out, vec![p("a")]);
         assert!(!is_following(&out, "b"));
+    }
+
+    #[test]
+    fn mute_toggles_and_keeps_other_tags() {
+        let tags = vec![p("a"), vec!["word".to_string(), "x".to_string()]];
+        let muted = with_mute(tags, "b", true);
+        assert!(is_muted(&muted, "b"));
+        assert!(is_muted(&muted, "a"));
+        let out = with_mute(muted, "b", false);
+        assert!(!is_muted(&out, "b"));
+        assert!(out.contains(&vec!["word".to_string(), "x".to_string()]));
     }
 }

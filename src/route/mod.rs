@@ -239,6 +239,37 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
         }
     }
 
+    pub fn own_mute_tags(&self) -> Vec<Vec<String>> {
+        let me = *self.ctx.accounts.get_selected_account().key.pubkey.bytes();
+        let filter = nostrdb::Filter::new().kinds([10_000]).authors(&[me]).limit(1).build();
+        self.ctx
+            .ndb
+            .query(self.tx, &[filter], 1)
+            .ok()
+            .and_then(|r| r.into_iter().next())
+            .map(|r| crate::contacts::tags_from_note(&r.note))
+            .unwrap_or_default()
+    }
+
+    pub fn is_muted(&self, target: &[u8; 32]) -> bool {
+        crate::contacts::is_muted(&self.own_mute_tags(), &nostr::prelude::hex::encode(target))
+    }
+
+    pub fn set_muted(&mut self, target: &[u8; 32], mute: bool) {
+        let Some(keys) = self.current_account_keys() else {
+            return;
+        };
+        let hex = nostr::prelude::hex::encode(target);
+        let tags = crate::contacts::with_mute(self.own_mute_tags(), &hex, mute);
+        let tags = tags.into_iter().filter_map(|t| Tag::parse(t).ok());
+        if let Ok(ev) = EventBuilder::new(Kind::MuteList, "")
+            .tags(tags)
+            .sign_with_keys(&keys)
+        {
+            self.broadcast_event(ev);
+        }
+    }
+
     pub fn current_account_keys(&self) -> Option<Keys> {
         self.ctx
             .accounts
