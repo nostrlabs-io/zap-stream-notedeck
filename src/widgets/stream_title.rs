@@ -43,7 +43,11 @@ impl<'a> StreamTitle<'a> {
                         .size(32.)
                         .render(ui, services.ctx);
                     let name = profile
-                        .and_then(|p| p.display_name().or(p.name()))
+                        .and_then(|p| {
+                            p.display_name()
+                                .filter(|n| !n.is_empty())
+                                .or(p.name().filter(|n| !n.is_empty()))
+                        })
                         .unwrap_or(crate::i18n::t("common.anon"))
                         .to_string();
                     ui.label(theme::semibold(name, 16.0).color(TEXT));

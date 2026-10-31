@@ -21,7 +21,7 @@ impl WriteChat {
             link,
             msg: String::new(),
             picked: HashMap::new(),
-            picker_open: false,
+            picker_open: std::env::var_os("ZAP_STREAM_DEBUG_EMOJI").is_some(),
         }
     }
 
