@@ -24,6 +24,7 @@ mod sub;
 mod theme;
 mod widgets;
 mod zap;
+mod zap_api;
 
 #[cfg(target_os = "android")]
 pub use lumina_video::*;
