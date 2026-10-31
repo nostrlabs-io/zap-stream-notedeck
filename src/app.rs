@@ -1,5 +1,5 @@
 use crate::profiles::ProfileLoader;
-use crate::route::{page, RouteAction, RouteServices, RouteType};
+use crate::route::{page, RouteAction, RouteServices, RouteType, SettingsSection};
 use crate::widgets::{Header, NostrWidget, Sidebar};
 use egui::epaint::Margin;
 use egui::Ui;
@@ -115,6 +115,14 @@ impl notedeck::App for ZapStreamApp {
                 self.startup_page = Some(v);
             }
         }
+        if let Ok(nsec) = std::env::var("ZAP_STREAM_NSEC") {
+            if let Some(kp) = crate::route::parse_login_key(&nsec) {
+                let pk = kp.pubkey;
+                ctx.accounts.add_account(kp);
+                ctx.select_account(&pk);
+            }
+            std::env::remove_var("ZAP_STREAM_NSEC");
+        }
         if let Some(page_name) = self.startup_page.take() {
             match page_name.as_str() {
                 "login" => {
@@ -126,6 +134,16 @@ impl notedeck::App for ZapStreamApp {
                     self.current = RouteType::CategoriesPage;
                 }
                 other => {
+                    if let Some(sec) = other.strip_prefix("settings") {
+                        let section = match sec {
+                            ":profile" => SettingsSection::Profile,
+                            ":wallet" => SettingsSection::Wallet,
+                            ":relays" => SettingsSection::Relays,
+                            _ => SettingsSection::Menu,
+                        };
+                        self.widget = Box::new(page::SettingsPage::new(section));
+                        self.current = RouteType::SettingsPage { section };
+                    }
                     if let Some(id) = other.strip_prefix("category:") {
                         self.widget = Box::new(page::ListingPage::new(page::Listing::Category(
                             id.to_string(),
@@ -221,6 +239,9 @@ impl notedeck::App for ZapStreamApp {
                     }
                     RouteType::SearchPage { query } => {
                         self.widget = Box::new(page::SearchPage::new(query.clone()));
+                    }
+                    RouteType::SettingsPage { section } => {
+                        self.widget = Box::new(page::SettingsPage::new(*section));
                     }
                     RouteType::Action(_) => unreachable!(),
                 }

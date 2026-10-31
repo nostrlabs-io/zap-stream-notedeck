@@ -37,6 +37,7 @@ lnurl-rs = { version = "0.9.0", default-features = false }
 nwc = "0.39.0"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
+rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "tokio"] }
 eframe = { version = "0.36.2", default-features = false, features = ["wgpu", "wayland", "x11", "default_fonts"] }
 
 [target.'cfg(target_os = "android")'.dependencies]

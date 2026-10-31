@@ -87,6 +87,10 @@ impl Header {
                                         action = Some("profile");
                                         ui.close();
                                     }
+                                    if Button::new().text(ui, "Settings").clicked() {
+                                        action = Some("settings");
+                                        ui.close();
+                                    }
                                     if Button::new().text(ui, "Logout").clicked() {
                                         action = Some("logout");
                                         ui.close();
@@ -96,6 +100,11 @@ impl Header {
                                 Some("profile") => {
                                     services.navigate(RouteType::ProfilePage {
                                         link: NostrLink::profile(pubkey.bytes()),
+                                    });
+                                }
+                                Some("settings") => {
+                                    services.navigate(RouteType::SettingsPage {
+                                        section: crate::route::SettingsSection::Menu,
                                     });
                                 }
                                 Some("logout") => {
