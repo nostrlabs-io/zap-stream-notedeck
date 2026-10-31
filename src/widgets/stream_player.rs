@@ -256,7 +256,10 @@ impl StreamPlayer {
         #[cfg(target_os = "android")]
         {
             let _ = ctx;
-            self.fullscreen_sent = self.fullscreen;
+            if self.fullscreen != self.fullscreen_sent {
+                crate::android_window::set_landscape_fullscreen(self.fullscreen);
+                self.fullscreen_sent = self.fullscreen;
+            }
         }
     }
 
@@ -320,6 +323,9 @@ impl StreamPlayer {
         }
         if out.toggle_fullscreen {
             self.fullscreen = !self.fullscreen;
+        }
+        if out.enter_pip {
+            crate::android_window::enter_pip();
         }
         if out.toggle_menu {
             self.menu_open = !self.menu_open;

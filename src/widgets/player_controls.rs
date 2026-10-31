@@ -16,6 +16,7 @@ pub struct ControlsOutput {
     pub volume: Option<u32>,
     pub toggle_fullscreen: bool,
     pub toggle_menu: bool,
+    pub enter_pip: bool,
     pub pick_quality: Option<usize>,
     pub hovered: bool,
 }
@@ -112,6 +113,22 @@ fn paint_fullscreen(ui: &Ui, c: Pos2, exit: bool) {
         p.line_segment([corner, end_x], s);
         p.line_segment([corner, end_y], s);
     }
+}
+
+fn paint_pip(ui: &Ui, c: Pos2) {
+    let p = ui.painter();
+    let s = Stroke::new(2.0, ICON);
+    p.rect_stroke(
+        Rect::from_center_size(c, vec2(18.0, 14.0)),
+        CornerRadius::same(2),
+        s,
+        egui::StrokeKind::Inside,
+    );
+    p.rect_filled(
+        Rect::from_min_size(c + vec2(0.0, 0.0), vec2(8.0, 5.0)),
+        CornerRadius::same(1),
+        ICON,
+    );
 }
 
 fn paint_volume_slider(ui: &mut Ui, rect: Rect, volume: u32, muted: bool) -> Option<u32> {
@@ -217,6 +234,15 @@ pub fn show(ui: &mut Ui, rect: Rect, input: &ControlsInput<'_>) -> ControlsOutpu
     }
     paint_fullscreen(ui, fs.center(), input.fullscreen);
     rx -= 40.0;
+
+    if crate::android_window::PIP_AVAILABLE {
+        let pip = slot(rx);
+        if icon_button(ui, "player-pip", pip) {
+            out.enter_pip = true;
+        }
+        paint_pip(ui, pip.center());
+        rx -= 40.0;
+    }
 
     if !input.qualities.is_empty() {
         let g = ui.painter().layout_no_wrap(

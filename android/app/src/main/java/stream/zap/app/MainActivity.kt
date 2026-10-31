@@ -35,7 +35,10 @@
 package stream.zap.app
 
 import android.content.Intent
+import android.app.PictureInPictureParams
+import android.content.pm.ActivityInfo
 import android.os.Bundle
+import android.util.Rational
 import java.io.File
 import android.util.Log
 import android.view.WindowManager
@@ -44,6 +47,7 @@ import android.view.ViewGroup
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.google.androidgamesdk.GameActivity
 import com.luminavideo.bridge.LuminaVideo
 
@@ -79,6 +83,33 @@ class MainActivity : GameActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         handleLink(intent)
+    }
+
+    fun setLandscapeFullscreen(enabled: Boolean) {
+        runOnUiThread {
+            requestedOrientation = if (enabled) {
+                ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            }
+            val controller = WindowInsetsControllerCompat(window, window.decorView)
+            if (enabled) {
+                controller.systemBarsBehavior =
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+            } else {
+                controller.show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
+
+    fun enterPip() {
+        runOnUiThread {
+            val params = PictureInPictureParams.Builder()
+                .setAspectRatio(Rational(16, 9))
+                .build()
+            enterPictureInPictureMode(params)
+        }
     }
 
     private fun handleLink(intent: Intent?) {
