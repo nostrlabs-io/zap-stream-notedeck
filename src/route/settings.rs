@@ -460,7 +460,8 @@ impl NostrWidget for SettingsPage {
     fn render(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) -> Response {
         egui::ScrollArea::vertical().auto_shrink([false, true]).show(ui, |ui| {
             Frame::new().inner_margin(Margin::symmetric(16, 16)).show(ui, |ui| {
-                ui.set_max_width(560.0);
+                let width = ui.available_width().min(560.0);
+                ui.set_max_width(width);
                 ui.spacing_mut().item_spacing.y = 12.0;
                 match self.section {
                     SettingsSection::Menu => self.menu(ui, services),

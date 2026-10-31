@@ -154,12 +154,12 @@ impl Broadcast {
     }
 
     pub fn render(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
-        SettingsPage::title(ui, "Go live");
         if Button::new().text(ui, "Back").clicked() {
             services.navigate(RouteType::SettingsPage {
                 section: SettingsSection::Menu,
             });
         }
+        SettingsPage::title(ui, "Go live");
         if !services.can_sign() {
             ui.label(
                 theme::medium("Log in with a private key to go live", 15.0).color(theme::MUTED),
