@@ -8,6 +8,8 @@ use notedeck::{Wallet, ZapWallet};
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
+mod broadcast;
+
 const PROFILE_WAIT: Duration = Duration::from_secs(3);
 const ERROR: Color32 = Color32::from_rgb(255, 99, 99);
 
@@ -21,6 +23,7 @@ pub struct SettingsPage {
     upload: Option<mpsc::Receiver<Result<String, String>>>,
     wallet_uri: String,
     relay_input: String,
+    broadcast: broadcast::Broadcast,
 }
 
 impl SettingsPage {
@@ -35,6 +38,7 @@ impl SettingsPage {
             upload: None,
             wallet_uri: String::new(),
             relay_input: String::new(),
+            broadcast: broadcast::Broadcast::default(),
         }
     }
 
@@ -131,6 +135,11 @@ impl SettingsPage {
         if Self::row(ui, "Relays", "Where your events are published") {
             services.navigate(RouteType::SettingsPage {
                 section: SettingsSection::Relays,
+            });
+        }
+        if Self::row(ui, "Go live", "Stream settings, server URL and stream key") {
+            services.navigate(RouteType::SettingsPage {
+                section: SettingsSection::Broadcast,
             });
         }
         if Self::row(ui, "Logout", "Remove this account from the app") {
@@ -458,6 +467,7 @@ impl NostrWidget for SettingsPage {
                     SettingsSection::Profile => self.profile(ui, services),
                     SettingsSection::Wallet => self.wallet(ui, services),
                     SettingsSection::Relays => self.relays(ui, services),
+                    SettingsSection::Broadcast => self.broadcast.render(ui, services),
                 }
             });
         });

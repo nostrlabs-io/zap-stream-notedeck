@@ -42,6 +42,7 @@ pub enum SettingsSection {
     Profile,
     Wallet,
     Relays,
+    Broadcast,
 }
 
 #[derive(PartialEq)]

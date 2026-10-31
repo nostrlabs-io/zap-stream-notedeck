@@ -175,6 +175,7 @@ impl notedeck::App for ZapStreamApp {
             if self.startup_page.is_none() {
                 self.startup_page = Some(v);
             }
+            std::env::remove_var("ZAP_STREAM_PAGE");
         }
         if let Ok(nsec) = std::env::var("ZAP_STREAM_NSEC") {
             if let Some(kp) = crate::route::parse_login_key(&nsec) {
@@ -200,6 +201,7 @@ impl notedeck::App for ZapStreamApp {
                             ":profile" => SettingsSection::Profile,
                             ":wallet" => SettingsSection::Wallet,
                             ":relays" => SettingsSection::Relays,
+                            ":live" => SettingsSection::Broadcast,
                             _ => SettingsSection::Menu,
                         };
                         self.widget = Box::new(page::SettingsPage::new(section));
