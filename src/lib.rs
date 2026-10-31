@@ -4,6 +4,7 @@ pub mod app;
 mod contacts;
 mod frame_stats;
 mod hls;
+mod i18n;
 mod player_health;
 pub mod relays;
 mod link;

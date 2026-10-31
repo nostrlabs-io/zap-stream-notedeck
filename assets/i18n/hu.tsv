@@ -1,0 +1,16 @@
+common.anon=Névtelen
+status.live=ÉLŐ
+status.planned=TERVEZETT
+status.ended=ENDED
+list.live=Élő
+list.planned=Tervezett
+list.ended=Véget ért
+list.following=Követettek bejegyzései
+button.login=Bejelentkezés
+button.logout=Kijelentkezés
+button.follow=Követés
+button.unfollow=Követés megszüntetése
+button.share=Megosztás
+profile.past_streams=Múltbeli Streamek
+button.open_wallet=Megnyitás a pénztárcában
+button.zap=Zap

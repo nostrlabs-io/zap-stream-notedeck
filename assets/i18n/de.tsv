@@ -1,0 +1,16 @@
+common.anon=Anon
+status.live=LIVE
+status.planned=GEPLANT
+status.ended=BEENDET
+list.live=Live
+list.planned=Geplant
+list.ended=Beendet
+list.following=Folge ich
+button.login=Anmelden
+button.logout=Abmelden
+button.follow=Folgen
+button.unfollow=Entfolgen
+button.share=Teilen
+profile.past_streams=Vergangene Streams
+button.open_wallet=In Brieftasche öffnen
+button.zap=Zap
