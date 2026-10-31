@@ -1,6 +1,7 @@
 #[cfg(target_os = "android")]
 mod android;
 pub mod app;
+mod blossom;
 mod contacts;
 mod frame_stats;
 mod hls;
@@ -10,6 +11,7 @@ mod link;
 mod note_ref;
 mod note_util;
 mod note_view;
+mod profile_edit;
 mod profiles;
 mod route;
 mod stream_info;
