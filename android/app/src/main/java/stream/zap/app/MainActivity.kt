@@ -122,7 +122,7 @@ class MainActivity : GameActivity() {
     private fun setupInsets() {
         val content = window.decorView.findViewById<View>(android.R.id.content)
         ViewCompat.setOnApplyWindowInsetsListener(content) { v, windowInsets ->
-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime())
             val lp = v.layoutParams as ViewGroup.MarginLayoutParams
             lp.topMargin = insets.top
             lp.leftMargin = insets.left
