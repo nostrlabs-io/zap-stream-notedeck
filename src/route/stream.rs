@@ -9,7 +9,7 @@ use nostrdb::{Filter, Note};
 
 use crate::note_ref::NoteRef;
 use crate::player_health::{format_countdown, playback_for, Playback};
-use crate::stream_info::{StreamInfo, StreamStatus};
+use crate::stream_info::{is_moq_url, StreamInfo, StreamStatus};
 use crate::widgets::stream_player::{paint_state_card, PlayerInfo};
 use crate::sub::SubRef;
 use std::borrow::Borrow;
@@ -45,6 +45,18 @@ impl StreamPage {
             event.streaming().is_some(),
             event.recording().is_some(),
         );
+        let moq_only = event.streaming().map_or(false, is_moq_url)
+            && event.recording().map_or(true, str::is_empty);
+        if moq_only && playback == Playback::Play {
+            self.player = None;
+            paint_state_card(
+                ui,
+                rect,
+                "Unsupported stream",
+                "This stream uses MoQ, which this app cannot play yet",
+            );
+            return;
+        }
         match playback {
             Playback::Play => {
                 if self.player.is_none() {
