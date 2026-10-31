@@ -1,25 +1,43 @@
+use crate::chat_data::{self, BuildInput, ChatData, Parsed, RowKind, Want};
+use crate::chat_model::{format_duration, TIMEOUT_CHOICES};
 use crate::link::NostrLink;
 use crate::note_ref::NoteRef;
 use crate::route::RouteServices;
 use crate::sub::SubRef;
-use crate::widgets::chat_message::ChatMessage;
+use crate::stream_info::StreamInfo;
 use crate::widgets::chat_zap::ChatZap;
-use crate::widgets::{sub_or_poll, NostrWidget};
+use crate::widgets::{
+    chat_badge, chat_message, chat_raid, chat_reactions, chat_timeout, emoji_picker, mute_button,
+    sub_or_poll, NostrWidget,
+};
 use crate::zap::Zap;
-use egui::{Frame, Margin, Response, ScrollArea, Ui};
-use itertools::Itertools;
+use egui::{Id, Modal, Response, ScrollArea, Sense, Ui};
 use nostrdb::{Filter, NoteKey};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+
+struct ModalState {
+    id: [u8; 32],
+    author: [u8; 32],
+    content: String,
+    picker: bool,
+    timeouts: bool,
+}
 
 pub struct Chat {
     link: NostrLink,
     stream: NoteKey,
     events: HashSet<NoteRef>,
+    aux: HashSet<NoteRef>,
     sub: Option<SubRef>,
-    sorted: Vec<NoteRef>,
-    sorted_len: usize,
-    heights: std::collections::HashMap<NoteKey, f32>,
+    aux_sub: Option<SubRef>,
+    aux_wants: Vec<Want>,
+    data: ChatData,
+    parsed: Parsed,
+    built_for: (usize, usize, u64),
+    heights: HashMap<NoteKey, f32>,
     measured_width: f32,
+    raid_started: HashMap<NoteKey, Option<f64>>,
+    modal: Option<ModalState>,
 }
 
 impl Chat {
@@ -28,19 +46,170 @@ impl Chat {
             link,
             stream,
             events: HashSet::new(),
+            aux: HashSet::new(),
             sub: None,
-            sorted: Vec::new(),
-            sorted_len: usize::MAX,
+            aux_sub: None,
+            aux_wants: Vec::new(),
+            data: ChatData::default(),
+            parsed: Parsed::default(),
+            built_for: (usize::MAX, usize::MAX, 0),
             heights: Default::default(),
             measured_width: 0.0,
+            raid_started: HashMap::new(),
+            modal: None,
         }
     }
 
-    pub fn get_filter(&self) -> Filter {
-        Filter::new()
-            .kinds([1_311, 9_735])
-            .tags([self.link.to_tag_value().as_str()], 'a')
-            .build()
+    pub fn disabled_until(&self) -> Option<Option<u64>> {
+        self.data.disabled_until
+    }
+
+    pub fn custom_emoji(&self) -> &[(String, String)] {
+        &self.data.custom_emoji
+    }
+
+    fn main_filters(&self, host: &[u8; 32], me: Option<[u8; 32]>) -> Vec<Filter> {
+        let tag = self.link.to_tag_value();
+        let mut moderators = vec![*host];
+        moderators.extend(me);
+        vec![
+            Filter::new()
+                .kinds([1_311, 9_735, 1_312])
+                .tags([tag.as_str()], 'a')
+                .limit(500)
+                .build(),
+            Filter::new()
+                .kinds([10_000, 1_314, 10_030])
+                .authors(moderators.iter())
+                .build(),
+            Filter::new().kinds([8]).authors([host]).build(),
+        ]
+    }
+
+    fn render_row(
+        &mut self,
+        ui: &mut Ui,
+        services: &mut RouteServices<'_, '_>,
+        idx: usize,
+        host: [u8; 32],
+        stream_tag: &str,
+    ) {
+        let row = self.data.rows[idx].clone();
+        match &row.kind {
+            RowKind::Message { id, author, segments, content } => {
+                let known = self.heights.get(&row.key).copied();
+                let can_open = services.me().is_some();
+                let top = ui.cursor().min;
+                let rect = egui::Rect::from_min_size(
+                    top,
+                    egui::vec2(ui.available_width(), known.unwrap_or(0.0)),
+                );
+                let bg = if can_open && known.is_some() {
+                    Some(ui.interact(rect, Id::new(("chat-row", row.key)), Sense::click()))
+                } else {
+                    None
+                };
+                chat_message::render(
+                    ui,
+                    services,
+                    &self.data,
+                    &chat_message::Message {
+                        author,
+                        segments,
+                        is_host: *author == host,
+                    },
+                );
+                let counts = self.data.reactions.get(id).map(|v| v.as_slice()).unwrap_or(&[]);
+                let sats = self.data.zapped.get(id).copied();
+                chat_reactions::show(ui, services, counts, sats);
+                if let Some(bg) = bg {
+                    if bg.clicked() || bg.long_touched() || bg.secondary_clicked() {
+                        self.modal = Some(ModalState {
+                            id: *id,
+                            author: *author,
+                            content: content.clone(),
+                            picker: false,
+                            timeouts: false,
+                        });
+                    }
+                }
+            }
+            RowKind::Zap => {
+                let Ok(ev) = services.ctx.ndb.get_note_by_key(services.tx, row.key) else {
+                    return;
+                };
+                if let Ok(zap) = Zap::from_receipt(ev) {
+                    let profile = services.profile(&zap.sender);
+                    ChatZap::new(&zap, &profile).render(ui, services.ctx);
+                }
+            }
+            RowKind::Raid { raid, created_at } => {
+                let started = self.raid_started.entry(row.key).or_insert(None);
+                chat_raid::show(ui, services, &self.data, raid, *created_at, stream_tag, started);
+            }
+            RowKind::Timeout(t) => chat_timeout::show(ui, services, t),
+            RowKind::BadgeAward { badge, users } => {
+                chat_badge::award(ui, services, self.data.badge_defs.get(badge), users);
+            }
+        }
+    }
+
+    fn render_modal(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>, host: [u8; 32]) {
+        let Some(state) = self.modal.as_mut() else {
+            return;
+        };
+        let is_moderator = services.me() == Some(host);
+        let mut close = false;
+        let mut react = None;
+        let mut timeout = None;
+        let resp = Modal::new(Id::new("chat-modal")).show(ui.ctx(), |ui| {
+            ui.set_width(320.0);
+            let name = chat_message::display_name(services, &state.author);
+            ui.label(crate::theme::semibold(name, 16.0));
+            ui.add_space(4.0);
+            ui.label(&state.content);
+            ui.add_space(8.0);
+            let counts = self.data.reactions.get(&state.id).map(|v| v.as_slice()).unwrap_or(&[]);
+            chat_reactions::show(ui, services, counts, self.data.zapped.get(&state.id).copied());
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui.button("😀").clicked() {
+                    state.picker = !state.picker;
+                    state.timeouts = false;
+                }
+                if is_moderator && ui.button("⏱ Timeout").clicked() {
+                    state.timeouts = !state.timeouts;
+                    state.picker = false;
+                }
+            });
+            if state.picker {
+                react = emoji_picker::show(ui, services, &self.data.custom_emoji);
+            }
+            if state.timeouts {
+                ui.horizontal_wrapped(|ui| {
+                    for secs in TIMEOUT_CHOICES {
+                        if ui.button(format_duration(secs)).clicked() {
+                            timeout = Some(secs);
+                        }
+                    }
+                });
+            }
+            ui.add_space(8.0);
+            if mute_button::show(ui, services, &self.data, &state.author) {
+                close = true;
+            }
+        });
+        if let Some(p) = react {
+            services.react(&state.id, &state.author, &p.content, p.url.as_deref());
+            close = true;
+        }
+        if let Some(secs) = timeout {
+            services.timeout_user(&state.author, secs);
+            close = true;
+        }
+        if close || resp.should_close() {
+            self.modal = None;
+        }
     }
 }
 
@@ -51,16 +220,8 @@ impl NostrWidget for Chat {
             .ndb
             .get_note_by_key(services.tx, self.stream)
             .unwrap();
-
-        if self.sorted_len != self.events.len() {
-            self.sorted = self
-                .events
-                .iter()
-                .copied()
-                .sorted_by(|a, b| a.created_at.cmp(&b.created_at))
-                .collect();
-            self.sorted_len = self.events.len();
-        }
+        let host = *stream.host();
+        let stream_tag = self.link.to_tag_value();
 
         let width = ui.available_width();
         if (self.measured_width - width).abs() > 1.0 {
@@ -76,53 +237,81 @@ impl NostrWidget for Chat {
                 ui.spacing_mut().item_spacing.y = 0.0;
                 let margin = 200.0;
                 let mut y = 0.0;
-                for idx in 0..self.sorted.len() {
-                    let r = self.sorted[idx];
-                    let known = self.heights.get(&r.key).copied();
+                for idx in 0..self.data.rows.len() {
+                    let key = self.data.rows[idx].key;
+                    let known = self.heights.get(&key).copied();
                     let h = known.unwrap_or(estimate);
-                    let offscreen =
-                        known.is_some() && (y + h < viewport.min.y - margin || y > viewport.max.y + margin);
+                    let offscreen = known.is_some()
+                        && (y + h < viewport.min.y - margin || y > viewport.max.y + margin);
                     if offscreen {
                         ui.add_space(h);
                         y += h;
                         continue;
                     }
-                    let Ok(ev) = services.ctx.ndb.get_note_by_key(services.tx, r.key) else {
-                        continue;
-                    };
                     let rect = ui
-                        .scope(|ui| match ev.kind() {
-                            1311 => {
-                                let profile = services.profile(ev.pubkey());
-                                ChatMessage::new(&stream, &ev, &profile).render(ui, services);
-                            }
-                            9735 => {
-                                if let Ok(zap) = Zap::from_receipt(ev) {
-                                    let profile = services.profile(&zap.sender);
-                                    ChatZap::new(&zap, &profile).render(ui, services.ctx);
-                                }
-                            }
-                            _ => {}
-                        })
+                        .scope(|ui| self.render_row(ui, services, idx, host, &stream_tag))
                         .response
                         .rect;
                     ui.add_space(8.0);
                     let measured = rect.height() + 8.0;
-                    self.heights.insert(r.key, measured);
+                    self.heights.insert(key, measured);
                     y += measured;
                 }
             });
+        self.render_modal(ui, services, host);
         ui.response()
     }
 
     fn update(&mut self, services: &mut RouteServices<'_, '_>) -> anyhow::Result<()> {
-        let filters = vec![self.get_filter()];
-        sub_or_poll(
-            services.ctx,
-            services.tx,
-            &mut self.events,
-            &mut self.sub,
-            filters,
-        )
+        let stream = services
+            .ctx
+            .ndb
+            .get_note_by_key(services.tx, self.stream)
+            .map_err(|e| anyhow::anyhow!("{}", e))?;
+        let host = *stream.host();
+        let me = services.me();
+        let filters = self.main_filters(&host, me);
+        sub_or_poll(services.ctx, services.tx, &mut self.events, &mut self.sub, filters)?;
+
+        if !self.aux_wants.is_empty() || self.aux_sub.is_some() {
+            if let Some(sub) = &self.aux_sub {
+                let ndb = &services.ctx.ndb;
+                for k in ndb.poll_for_notes(sub.sub, 500) {
+                    if let Ok(note) = ndb.get_note_by_key(services.tx, k) {
+                        self.aux.insert(NoteRef::from_note(&note));
+                    }
+                }
+            }
+        }
+
+        let now = nostr::Timestamp::now().as_u64();
+        let stamp = (self.events.len(), self.aux.len(), now / 10);
+        if stamp != self.built_for {
+            self.built_for = stamp;
+            let data = chat_data::build(
+                &BuildInput {
+                    ndb: services.ctx.ndb,
+                    tx: services.tx,
+                    main: &self.events,
+                    aux: &self.aux,
+                    host,
+                    me,
+                    now,
+                },
+                &mut self.parsed,
+            );
+            if data.wants != self.aux_wants {
+                self.aux_wants = data.wants.clone();
+                self.aux_sub = None;
+                if !self.aux_wants.is_empty() {
+                    let filters: Vec<Filter> = self.aux_wants.iter().map(|w| w.filter()).collect();
+                    let mut sink = HashSet::new();
+                    sub_or_poll(services.ctx, services.tx, &mut sink, &mut self.aux_sub, filters)?;
+                    self.aux.extend(sink);
+                }
+            }
+            self.data = data;
+        }
+        Ok(())
     }
 }

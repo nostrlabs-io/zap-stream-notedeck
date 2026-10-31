@@ -192,7 +192,6 @@ pub fn build(input: &BuildInput, parsed: &mut Parsed) -> ChatData {
                     awards.push((r.key, r.created_at, *note.id(), a.to_string(), pubkeys_of(&tags)));
                 }
             }
-            30009 => collect_badge(&mut data, &note),
             10030 => set_refs.extend(emoji_set_refs(&note.tags_vec())),
             30030 => collect_set(&mut data, &note.tags_vec()),
             _ => {}

@@ -1,8 +1,15 @@
 mod avatar;
 mod button;
 mod chat;
-mod chat_message;
+pub(crate) mod chat_badge;
+pub(crate) mod chat_message;
+pub(crate) mod chat_raid;
+pub(crate) mod chat_reactions;
+pub(crate) mod chat_timeout;
 mod chat_zap;
+pub(crate) mod emoji_picker;
+pub(crate) mod mute_button;
+pub(crate) mod note_embed;
 mod header;
 mod hero;
 mod pill;

@@ -100,7 +100,14 @@ impl StreamPage {
                         } else {
                             ui.label("Loading..");
                         }
-                        self.new_msg.render(ui, services);
+                        {
+                            let (emoji, disabled) = self
+                                .chat
+                                .as_ref()
+                                .map(|c| (c.custom_emoji().to_vec(), c.disabled_until()))
+                                .unwrap_or_default();
+                            self.new_msg.render(ui, services, &emoji, disabled);
+                        }
                     },
                 );
             },
@@ -137,7 +144,14 @@ impl StreamPage {
             } else {
                 ui.label("Loading..");
             }
-            self.new_msg.render(ui, services);
+            {
+                            let (emoji, disabled) = self
+                                .chat
+                                .as_ref()
+                                .map(|c| (c.custom_emoji().to_vec(), c.disabled_until()))
+                                .unwrap_or_default();
+                            self.new_msg.render(ui, services, &emoji, disabled);
+                        }
         });
     }
 
