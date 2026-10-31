@@ -258,6 +258,12 @@ impl notedeck::App for ZapStreamApp {
                 .authors(&profiles)
                 .build()])
             .accounts_read_important()
+            .with_explicit_relays(
+                crate::relays::DEFAULT_RELAYS
+                    .iter()
+                    .filter_map(|u| enostr::NormRelayUrl::new(u).ok()),
+                notedeck::SubRelayPolicy::accounts_read_important(),
+            )
             .build();
             ctx.remote
                 .scoped_subs(ctx.accounts)

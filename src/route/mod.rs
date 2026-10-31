@@ -98,12 +98,20 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
         {
             warn!("Failed to submit event {}", e);
         }
-        let relays = self
+        let mut relays = self
             .ctx
             .accounts
             .selected_account_write_relays()
             .into_iter()
             .collect::<Vec<RelayId>>();
+        for url in crate::relays::DEFAULT_RELAYS {
+            if let Ok(u) = enostr::NormRelayUrl::new(url) {
+                let id = RelayId::Websocket(u);
+                if !relays.contains(&id) {
+                    relays.push(id);
+                }
+            }
+        }
         self.ctx
             .remote
             .publisher_explicit()
@@ -173,6 +181,33 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
                 .ok()
         } else {
             None
+        }
+    }
+
+    pub fn own_contact_tags(&self) -> Vec<Vec<String>> {
+        let me = *self.ctx.accounts.get_selected_account().key.pubkey.bytes();
+        let filter = nostrdb::Filter::new().kinds([3]).authors(&[me]).limit(1).build();
+        self.ctx
+            .ndb
+            .query(self.tx, &[filter], 1)
+            .ok()
+            .and_then(|r| r.into_iter().next())
+            .map(|r| crate::contacts::tags_from_note(&r.note))
+            .unwrap_or_default()
+    }
+
+    pub fn set_following(&mut self, target: &[u8; 32], follow: bool) {
+        let Some(keys) = self.current_account_keys() else {
+            return;
+        };
+        let hex = nostr::prelude::hex::encode(target);
+        let tags = crate::contacts::with_follow(self.own_contact_tags(), &hex, follow);
+        let tags = tags.into_iter().filter_map(|t| Tag::parse(t).ok());
+        if let Ok(ev) = EventBuilder::new(Kind::ContactList, "")
+            .tags(tags)
+            .sign_with_keys(&keys)
+        {
+            self.broadcast_event(ev);
         }
     }
 
