@@ -46,6 +46,8 @@ pub trait StreamInfo {
     fn game_id(&self) -> Option<String>;
 
     fn share_url(&self) -> Option<String>;
+
+    fn goal(&self) -> Option<[u8; 32]>;
 }
 
 pub fn is_game_tag(tag: &str) -> bool {
@@ -203,6 +205,18 @@ impl StreamInfo for Note<'_> {
             .to_bech32()
             .ok()
             .map(|n| format!("https://zap.stream/{}", n))
+    }
+
+    fn goal(&self) -> Option<[u8; 32]> {
+        let v = self.get_tag_value("goal")?;
+        match v.variant() {
+            NdbStrVariant::Id(i) => Some(*i),
+            NdbStrVariant::Str(s) => {
+                let mut out = [0u8; 32];
+                nostr::prelude::hex::decode_to_slice(s, &mut out).ok()?;
+                Some(out)
+            }
+        }
     }
 }
 

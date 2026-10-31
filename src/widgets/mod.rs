@@ -3,6 +3,7 @@ mod button;
 mod chat;
 mod chat_message;
 mod chat_zap;
+mod goal;
 mod header;
 mod hero;
 mod pill;
@@ -72,6 +73,7 @@ pub fn sub_or_poll(
 pub use self::avatar::Avatar;
 pub use self::button::Button;
 pub use self::chat::Chat;
+pub use self::goal::Goal;
 pub use self::header::Header;
 pub use self::hero::Hero;
 pub use self::pill::Pill;

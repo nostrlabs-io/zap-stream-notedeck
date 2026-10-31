@@ -8764,6 +8764,7 @@ dependencies = [
  "nostr 0.37.0",
  "nostrdb",
  "notedeck",
+ "nwc",
  "poll-promise",
  "pretty_env_logger",
  "qrcode",

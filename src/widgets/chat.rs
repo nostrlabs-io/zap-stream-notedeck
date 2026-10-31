@@ -5,7 +5,7 @@ use crate::sub::SubRef;
 use crate::widgets::chat_message::ChatMessage;
 use crate::widgets::chat_zap::ChatZap;
 use crate::widgets::{sub_or_poll, NostrWidget};
-use crate::zap::Zap;
+use crate::zap::{format_sats, top_senders, Zap};
 use egui::{Frame, Margin, Response, ScrollArea, Ui};
 use itertools::Itertools;
 use nostrdb::{Filter, NoteKey};
@@ -20,6 +20,8 @@ pub struct Chat {
     sorted_len: usize,
     heights: std::collections::HashMap<NoteKey, f32>,
     measured_width: f32,
+    top: Vec<([u8; 32], u64)>,
+    top_len: usize,
 }
 
 impl Chat {
@@ -33,6 +35,8 @@ impl Chat {
             sorted_len: usize::MAX,
             heights: Default::default(),
             measured_width: 0.0,
+            top: Vec::new(),
+            top_len: usize::MAX,
         }
     }
 
@@ -41,6 +45,48 @@ impl Chat {
             .kinds([1_311, 9_735])
             .tags([self.link.to_tag_value().as_str()], 'a')
             .build()
+    }
+}
+
+impl Chat {
+    fn top_zappers_row(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
+        if self.top_len != self.events.len() {
+            self.top_len = self.events.len();
+            let mut zaps = Vec::new();
+            for r in &self.events {
+                if let Ok(note) = services.ctx.ndb.get_note_by_key(services.tx, r.key) {
+                    if note.kind() == 9735 {
+                        if let Ok(z) = Zap::from_receipt(note) {
+                            zaps.push(z);
+                        }
+                    }
+                }
+            }
+            self.top = top_senders(&zaps, 10);
+        }
+        if self.top.is_empty() {
+            return;
+        }
+        egui::ScrollArea::horizontal()
+            .id_salt("chat-top-zappers")
+            .auto_shrink([false, true])
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 12.0;
+                    for (pk, sats) in self.top.clone() {
+                        let profile = services.profile(&pk);
+                        crate::widgets::Avatar::from_profile(&profile)
+                            .size(20.0)
+                            .render(ui, services.ctx);
+                        ui.label(
+                            crate::theme::semibold(format_sats(sats as f32), 13.0)
+                                .color(crate::theme::ZAP),
+                        );
+                    }
+                });
+            });
+        ui.add_space(6.0);
     }
 }
 
@@ -67,6 +113,8 @@ impl NostrWidget for Chat {
             self.heights.clear();
             self.measured_width = width;
         }
+
+        self.top_zappers_row(ui, services);
 
         let estimate = 32.0;
         ScrollArea::vertical()

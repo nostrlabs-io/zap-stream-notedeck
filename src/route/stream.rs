@@ -2,7 +2,7 @@ use crate::link::NostrLink;
 use crate::route::RouteServices;
 use crate::theme::{MARGIN_DEFAULT, NEUTRAL_800, ROUNDING_DEFAULT};
 use crate::widgets::{
-    sub_or_poll, Chat, NostrWidget, PlaceholderRect, StreamPlayer, StreamTitle, WriteChat,
+    sub_or_poll, Chat, Goal, NostrWidget, PlaceholderRect, StreamPlayer, StreamTitle, WriteChat,
 };
 use egui::{vec2, Align, Frame, Layout, Response, ScrollArea, Stroke, Ui, Vec2, Widget};
 use nostrdb::{Filter, Note};
@@ -20,6 +20,7 @@ pub struct StreamPage {
     render_state: Option<egui_wgpu::RenderState>,
     player: Option<StreamPlayer>,
     chat: Option<Chat>,
+    goal: Option<Goal>,
     new_msg: WriteChat,
 
     events: HashSet<NoteRef>,
@@ -33,6 +34,7 @@ impl StreamPage {
             new_msg: WriteChat::new(link.clone()),
             link,
             chat: None,
+            goal: None,
             player: None,
             events: HashSet::new(),
             sub: None,
@@ -149,6 +151,7 @@ impl StreamPage {
                     Layout::top_down(Align::Min),
                     |ui| {
                         let _t = crate::frame_stats::Section::start("chat");
+                        self.goal_bar(ui, services);
                         if let Some(c) = self.chat.as_mut() {
                             ui.allocate_ui(
                                 vec2(w, (ui.available_height() - chat_h).max(0.0)),
@@ -163,6 +166,14 @@ impl StreamPage {
             },
         );
         ui.response()
+    }
+
+    fn goal_bar(&self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
+        if let Some(g) = &self.goal {
+            Frame::new()
+                .inner_margin(egui::Margin::symmetric(16, 8))
+                .show(ui, |ui| g.render(ui, services));
+        }
     }
 
     fn chat_panel(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
@@ -184,6 +195,7 @@ impl StreamPage {
                 ui.cursor().top(),
                 Stroke::new(1.0, crate::theme::BORDER),
             );
+            self.goal_bar(ui, services);
             if let Some(c) = self.chat.as_mut() {
                 ui.allocate_ui(
                     vec2(ui.available_width(), (ui.available_height() - chat_h).max(0.0)),
@@ -249,6 +261,11 @@ impl NostrWidget for StreamPage {
             .collect();
 
         if let Some(event) = events.first() {
+            let goal_id = event.goal();
+            if self.goal.as_ref().map(|g| *g.id()) != goal_id {
+                self.goal = goal_id.map(Goal::new);
+            }
+
             if self.chat.is_none() {
                 let ok = event.key().unwrap();
                 let chat = Chat::new(self.link.clone(), ok);
@@ -276,6 +293,9 @@ impl NostrWidget for StreamPage {
         )?;
         if let Some(c) = self.chat.as_mut() {
             c.update(services)?;
+        }
+        if let Some(g) = self.goal.as_mut() {
+            g.update(services)?;
         }
         Ok(())
     }
