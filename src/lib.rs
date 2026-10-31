@@ -12,6 +12,7 @@ mod note_ref;
 mod note_util;
 mod note_view;
 mod profile_edit;
+mod relay_list;
 mod profiles;
 mod route;
 mod stream_info;

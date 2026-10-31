@@ -21,7 +21,10 @@ pub mod listing;
 mod login;
 mod profile;
 mod search;
+mod settings;
 mod stream;
+
+pub use login::parse_key as parse_login_key;
 
 pub mod page {
     pub use super::home::HomePage;
@@ -29,7 +32,16 @@ pub mod page {
     pub use super::login::LoginPage;
     pub use super::profile::ProfilePage;
     pub use super::search::SearchPage;
+    pub use super::settings::SettingsPage;
     pub use super::stream::StreamPage;
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum SettingsSection {
+    Menu,
+    Profile,
+    Wallet,
+    Relays,
 }
 
 #[derive(PartialEq)]
@@ -49,6 +61,7 @@ pub enum RouteType {
     VideosPage,
     ShortsPage,
     SearchPage { query: String },
+    SettingsPage { section: SettingsSection },
 
     // special kind for modifying route state
     Action(RouteAction),
