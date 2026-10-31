@@ -340,6 +340,9 @@ impl NostrWidget for LoginPage {
                     .inner_margin(Margin::same(24))
                     .show(ui, |ui| {
                         ui.set_width(width - 48.0);
+                        egui::ScrollArea::vertical()
+                            .max_height((screen.height() - 96.0).max(120.0))
+                            .show(ui, |ui| {
                         ui.spacing_mut().item_spacing.y = 14.0;
 
                         let top = ui.horizontal(|ui| {
@@ -373,6 +376,7 @@ impl NostrWidget for LoginPage {
                             Step::Address => self.step_address(ui),
                             Step::SaveKey => self.step_save(ui, services),
                         }
+                            });
                     });
             });
 
