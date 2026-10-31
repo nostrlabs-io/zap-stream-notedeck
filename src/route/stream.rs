@@ -126,7 +126,7 @@ impl StreamPage {
                 let _t = crate::frame_stats::Section::start("player");
                 self.video(ui, rect, event);
 
-                let info_h = (h - video_h) * 0.38;
+                let info_h = ((h - video_h) * 0.5).max(150.0);
                 ScrollArea::vertical()
                     .id_salt("stream-info")
                     .max_height(info_h)
