@@ -28,6 +28,25 @@ pub fn decode_pubkey(bech: &str) -> Option<[u8; 32]> {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EmbedTarget {
+    Event([u8; 32]),
+    Coordinate(u32, [u8; 32], String),
+}
+
+pub fn embed_target(bech: &str) -> Option<EmbedTarget> {
+    match Nip19::from_bech32(bech).ok()? {
+        Nip19::EventId(id) => Some(EmbedTarget::Event(id.to_bytes())),
+        Nip19::Event(e) => Some(EmbedTarget::Event(e.event_id.to_bytes())),
+        Nip19::Coordinate(c) => Some(EmbedTarget::Coordinate(
+            c.kind.as_u16() as u32,
+            c.public_key.to_bytes(),
+            c.identifier,
+        )),
+        _ => None,
+    }
+}
+
 pub fn parse(content: &str, emoji: &HashMap<String, String>) -> Vec<Segment> {
     let mut out = Vec::new();
     let mut last = 0;
@@ -119,6 +138,15 @@ mod tests {
         let id = nostr::EventId::all_zeros().to_bech32().unwrap();
         let s = parse(&format!("see nostr:{id}"), &HashMap::new());
         assert_eq!(s[1], Segment::Embed(id));
+    }
+
+    #[test]
+    fn embed_target_decodes_note_and_rejects_profile() {
+        let id = nostr::EventId::all_zeros();
+        let note = id.to_bech32().unwrap();
+        assert_eq!(embed_target(&note), Some(EmbedTarget::Event(id.to_bytes())));
+        let npub = Keys::generate().public_key().to_bech32().unwrap();
+        assert_eq!(embed_target(&npub), None);
     }
 
     #[test]

@@ -129,6 +129,14 @@ pub fn parse_raid(tags: &[Vec<String>]) -> Option<Raid> {
     })
 }
 
+pub fn toggle_mute_tags(mut tags: Vec<Vec<String>>, who: &str, mute: bool) -> Vec<Vec<String>> {
+    tags.retain(|t| !(t.len() > 1 && t[0] == "p" && t[1] == who));
+    if mute {
+        tags.push(vec!["p".to_string(), who.to_string()]);
+    }
+    tags
+}
+
 pub fn is_auto_raid(created_at: u64, now: u64) -> bool {
     created_at.abs_diff(now) < 60
 }
@@ -263,6 +271,15 @@ mod tests {
         assert_eq!(raid.from, "30311:aa:one");
         assert_eq!(raid.to, "30311:bb:two");
         assert!(parse_raid(&tags[..1]).is_none());
+    }
+
+    #[test]
+    fn toggling_mute_adds_once_and_removes() {
+        let base = vec![vec!["t".to_string(), "x".to_string()]];
+        let muted = toggle_mute_tags(base.clone(), "ab", true);
+        let muted = toggle_mute_tags(muted, "ab", true);
+        assert_eq!(muted.iter().filter(|t| t[0] == "p").count(), 1);
+        assert_eq!(toggle_mute_tags(muted, "ab", false), base);
     }
 
     #[test]
