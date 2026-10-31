@@ -42,6 +42,8 @@ pub trait StreamInfo {
     fn viewers(&self) -> Option<u32>;
 
     fn hashtags(&self) -> Vec<String>;
+
+    fn goal(&self) -> Option<[u8; 32]>;
 }
 
 impl StreamInfo for Note<'_> {
@@ -151,5 +153,17 @@ impl StreamInfo for Note<'_> {
             }
         }
         out
+    }
+
+    fn goal(&self) -> Option<[u8; 32]> {
+        let v = self.get_tag_value("goal")?;
+        match v.variant() {
+            NdbStrVariant::Id(i) => Some(*i),
+            NdbStrVariant::Str(s) => {
+                let mut out = [0u8; 32];
+                nostr::prelude::hex::decode_to_slice(s, &mut out).ok()?;
+                Some(out)
+            }
+        }
     }
 }
