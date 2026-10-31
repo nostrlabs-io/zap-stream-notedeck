@@ -12,7 +12,7 @@ pub fn display_name(services: &RouteServices<'_, '_>, pk: &[u8; 32]) -> String {
     services
         .profile(pk)
         .and_then(|p| p.name().or(p.display_name()))
-        .unwrap_or("Nostrich")
+        .unwrap_or(crate::i18n::t("common.anon"))
         .to_string()
 }
 
@@ -47,10 +47,30 @@ fn flush(ui: &mut Ui, job: &mut LayoutJob) {
 pub fn render(ui: &mut Ui, services: &mut RouteServices<'_, '_>, data: &ChatData, msg: &Message) {
     let profile = services.profile(msg.author);
     ui.horizontal_wrapped(|ui| {
-        Avatar::from_profile(&profile).size(24.).render(ui, services.ctx);
+        let avatar = Avatar::from_profile(&profile).size(24.).render(ui, services.ctx);
+        if avatar.clicked() {
+            services.navigate(RouteType::ProfilePage {
+                link: NostrLink::profile(msg.author),
+            });
+        }
+        if services.can_sign() && Some(*msg.author) != services.me() {
+            let author = *msg.author;
+            let muted = services.is_muted(&author);
+            avatar.context_menu(|ui| {
+                let label = if muted {
+                    crate::i18n::t("button.unmute")
+                } else {
+                    crate::i18n::t("button.mute")
+                };
+                if ui.button(label).clicked() {
+                    services.set_muted(&author, !muted);
+                    ui.close();
+                }
+            });
+        }
         let name = profile
             .and_then(|p| p.name().or(p.display_name()))
-            .unwrap_or("Nostrich");
+            .unwrap_or(crate::i18n::t("common.anon"));
         let color = if msg.is_host { PRIMARY } else { NEUTRAL_500 };
         ui.add(Label::new(RichText::new(name).color(color)).wrap_mode(TextWrapMode::Wrap));
         for def in chat_badge::badges_for(data, msg.author) {

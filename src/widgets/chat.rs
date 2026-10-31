@@ -10,7 +10,7 @@ use crate::widgets::{
     chat_badge, chat_message, chat_raid, chat_reactions, chat_timeout, emoji_picker, mute_button,
     sub_or_poll, NostrWidget,
 };
-use crate::zap::Zap;
+use crate::zap::{format_sats, top_senders, Zap};
 use egui::{Id, Modal, Response, ScrollArea, Sense, Ui};
 use nostrdb::{Filter, NoteKey};
 use std::collections::{HashMap, HashSet};
@@ -38,6 +38,8 @@ pub struct Chat {
     measured_width: f32,
     raid_started: HashMap<NoteKey, Option<f64>>,
     modal: Option<ModalState>,
+    top: Vec<([u8; 32], u64)>,
+    top_len: usize,
 }
 
 impl Chat {
@@ -57,6 +59,8 @@ impl Chat {
             measured_width: 0.0,
             raid_started: HashMap::new(),
             modal: None,
+            top: Vec::new(),
+            top_len: usize::MAX,
         }
     }
 
@@ -97,6 +101,9 @@ impl Chat {
         let row = self.data.rows[idx].clone();
         match &row.kind {
             RowKind::Message { id, author, segments, content } => {
+                if services.is_muted(author) {
+                    return;
+                }
                 let known = self.heights.get(&row.key).copied();
                 let can_open = services.me().is_some();
                 let top = ui.cursor().min;
@@ -195,7 +202,7 @@ impl Chat {
                 });
             }
             ui.add_space(8.0);
-            if mute_button::show(ui, services, &self.data, &state.author) {
+            if mute_button::show(ui, services, &state.author) {
                 close = true;
             }
         });
@@ -210,6 +217,48 @@ impl Chat {
         if close || resp.should_close() {
             self.modal = None;
         }
+    }
+}
+
+impl Chat {
+    fn top_zappers_row(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
+        if self.top_len != self.events.len() {
+            self.top_len = self.events.len();
+            let mut zaps = Vec::new();
+            for r in &self.events {
+                if let Ok(note) = services.ctx.ndb.get_note_by_key(services.tx, r.key) {
+                    if note.kind() == 9735 {
+                        if let Ok(z) = Zap::from_receipt(note) {
+                            zaps.push(z);
+                        }
+                    }
+                }
+            }
+            self.top = top_senders(&zaps, 10);
+        }
+        if self.top.is_empty() {
+            return;
+        }
+        egui::ScrollArea::horizontal()
+            .id_salt("chat-top-zappers")
+            .auto_shrink([false, true])
+            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+            .show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 12.0;
+                    for (pk, sats) in self.top.clone() {
+                        let profile = services.profile(&pk);
+                        crate::widgets::Avatar::from_profile(&profile)
+                            .size(20.0)
+                            .render(ui, services.ctx);
+                        ui.label(
+                            crate::theme::semibold(format_sats(sats as f32), 13.0)
+                                .color(crate::theme::ZAP),
+                        );
+                    }
+                });
+            });
+        ui.add_space(6.0);
     }
 }
 
@@ -228,6 +277,8 @@ impl NostrWidget for Chat {
             self.heights.clear();
             self.measured_width = width;
         }
+
+        self.top_zappers_row(ui, services);
 
         let estimate = 32.0;
         ScrollArea::vertical()

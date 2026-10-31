@@ -32,6 +32,28 @@ impl WriteChat {
         custom_emoji: &[(String, String)],
         disabled_until: Option<Option<u64>>,
     ) -> Response {
+        if !services.can_sign() {
+            let resp = Frame::new()
+                .inner_margin(egui::Margin::symmetric(12, 12))
+                .outer_margin(egui::Margin::same(12))
+                .fill(NEUTRAL_900)
+                .stroke(egui::Stroke::new(1.0, crate::theme::BORDER))
+                .corner_radius(ROUNDING_DEFAULT)
+                .show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    ui.label(
+                        crate::theme::medium("Log in with a private key to chat", 14.0)
+                            .color(crate::theme::MUTED),
+                    );
+                })
+                .response
+                .interact(Sense::click())
+                .on_hover_and_drag_cursor(egui::CursorIcon::PointingHand);
+            if resp.clicked() {
+                services.navigate(crate::route::RouteType::LoginPage);
+            }
+            return resp;
+        }
         let logo_bytes = include_bytes!("../resources/send-03.svg");
         Frame::new()
             .inner_margin(egui::Margin::symmetric(12, 8))

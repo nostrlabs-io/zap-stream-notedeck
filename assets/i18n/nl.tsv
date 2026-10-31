@@ -1,0 +1,16 @@
+common.anon=Anon
+status.live=LIVE
+status.planned=GEPLAND
+status.ended=GESLOTEN
+list.live=Live
+list.planned=Gepland
+list.ended=Beëindigd
+list.following=Volgt
+button.login=Inloggen
+button.logout=Uitloggen
+button.follow=Volgen
+button.unfollow=Ontvolgen
+button.share=Deel
+profile.past_streams=Afgelopen Streams
+button.open_wallet=Openen in portefeuille
+button.zap=Zap

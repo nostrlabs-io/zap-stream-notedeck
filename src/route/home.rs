@@ -20,12 +20,38 @@ pub struct HomePage {
     board: (u64, Vec<([u8; 32], u64)>),
     board_len: usize,
     render_state: Option<egui_wgpu::RenderState>,
+    pull: PullToRefresh,
+}
+
+#[derive(Default)]
+struct PullToRefresh {
+    distance: f32,
+    refreshed_at: Option<std::time::Instant>,
+}
+
+pub const PULL_THRESHOLD: f32 = 90.0;
+
+impl PullToRefresh {
+    fn update(&mut self, at_top: bool, dragging: bool, delta_y: f32) -> bool {
+        if !dragging {
+            let fire = self.distance >= PULL_THRESHOLD;
+            self.distance = 0.0;
+            return fire;
+        }
+        if at_top && (delta_y > 0.0 || self.distance > 0.0) {
+            self.distance = (self.distance + delta_y).max(0.0);
+        } else {
+            self.distance = 0.0;
+        }
+        false
+    }
 }
 
 impl HomePage {
     pub fn new(render_state: Option<egui_wgpu::RenderState>) -> Self {
         Self {
             preview: None,
+            pull: PullToRefresh::default(),
             board: (0, Vec::new()),
             board_len: usize::MAX,
             render_state,
@@ -34,6 +60,12 @@ impl HomePage {
             zaps: HashSet::new(),
             zap_sub: None,
         }
+    }
+
+    fn refresh(&mut self) {
+        self.sub = None;
+        self.zap_sub = None;
+        self.pull.refreshed_at = Some(std::time::Instant::now());
     }
 
     fn zap_filters() -> Vec<Filter> {
@@ -80,11 +112,11 @@ impl HomePage {
     ) {
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 10.0;
-            ui.label(theme::semibold("Zapped in the last 24 hours", 15.0));
+            ui.label(theme::semibold(crate::i18n::t("home.zapped_24h"), 15.0));
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 6.0;
                 ui.label(theme::display(crate::zap::format_sats(total as f32), 46.0).color(theme::PRIMARY));
-                ui.label(theme::medium("sats", 16.0).color(theme::MUTED));
+                ui.label(theme::medium(crate::i18n::t("common.sats"), 16.0).color(theme::MUTED));
             });
             for (pk, sats) in top {
                 let profile = services.profile(pk);
@@ -93,7 +125,7 @@ impl HomePage {
                     crate::widgets::Avatar::from_profile(&profile)
                         .size(24.0)
                         .render(ui, services.ctx);
-                    let name = profile.and_then(|p| p.name()).unwrap_or("Nostrich").to_string();
+                    let name = profile.and_then(|p| p.name()).unwrap_or(crate::i18n::t("common.anon")).to_string();
                     ui.label(theme::semibold(name, 15.0));
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
@@ -118,14 +150,14 @@ impl HomePage {
             Some("science"),
         ];
         const TABS: &[&str] = &[
-            "All live",
-            "IRL",
-            "Gaming",
-            "Music",
-            "Talk",
-            "Art",
-            "Gambling",
-            "Science & Technology",
+            "home.tab.all",
+            "home.tab.irl",
+            "home.tab.gaming",
+            "home.tab.music",
+            "home.tab.talk",
+            "home.tab.art",
+            "home.tab.gambling",
+            "home.tab.science",
         ];
         let sel_id = Id::new("home-category");
         let selected: usize = ui.ctx().data(|d| d.get_temp(sel_id)).unwrap_or(0);
@@ -141,7 +173,7 @@ impl HomePage {
             ui.spacing_mut().item_spacing.x = 24.0;
             for (i, t) in TABS.iter().enumerate() {
                 let active = i == selected;
-                let text = theme::medium(*t, 16.0).color(if active { theme::TEXT } else { theme::MUTED });
+                let text = theme::medium(crate::i18n::t(t), 16.0).color(if active { theme::TEXT } else { theme::MUTED });
                 let r = ui
                     .add(egui::Label::new(text).sense(egui::Sense::click()))
                     .on_hover_and_drag_cursor(egui::CursorIcon::PointingHand);
@@ -182,7 +214,39 @@ impl HomePage {
 
 impl NostrWidget for HomePage {
     fn render(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) -> Response {
+        let (dragging, delta_y) = ui.input(|i| {
+            (
+                i.pointer.primary_down() && i.pointer.is_decidedly_dragging(),
+                i.pointer.delta().y,
+            )
+        });
+        let scroll_id = Id::new("home-scroll");
+        let at_top = egui::scroll_area::State::load(ui.ctx(), scroll_id)
+            .map_or(true, |s| s.offset.y <= 0.5);
+        if self.pull.update(at_top, dragging, delta_y) {
+            self.refresh();
+        }
+        let pulled = self.pull.distance;
+        let refreshing = self
+            .pull
+            .refreshed_at
+            .map_or(false, |t| t.elapsed() < std::time::Duration::from_millis(800));
+        if refreshing {
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(100));
+        }
+        if pulled > 0.0 || refreshing {
+            let key = if refreshing {
+                "home.refreshing"
+            } else {
+                "home.pull_to_refresh"
+            };
+            ui.add_space((pulled * 0.4).min(40.0));
+            ui.vertical_centered(|ui| {
+                ui.label(theme::medium(crate::i18n::t(key), 13.0).color(theme::MUTED));
+            });
+        }
         ScrollArea::vertical()
+            .id_salt("home-scroll")
             .auto_shrink([false, false])
             .show(ui, |ui| {
                 let wide = ui.available_width() >= theme::WIDE_BREAKPOINT;
@@ -205,12 +269,9 @@ impl NostrWidget for HomePage {
                             .collect();
                         live.sort_by_key(|e| std::cmp::Reverse(e.viewers().unwrap_or(0)));
 
-                        let wide_panel = wide && ui.available_width() > 900.0;
-                        let (total, top_zappers) = if wide_panel {
+                        let (total, top_zappers) = {
                             let _t = crate::frame_stats::Section::start("leaderboard");
                             self.leaderboard(services)
-                        } else {
-                            (0, Vec::new())
                         };
                         let _q = crate::frame_stats::Section::start("home_body");
                         let preview_url = live.first().and_then(|t| {
@@ -255,6 +316,17 @@ impl NostrWidget for HomePage {
                                 let h = w * 0.5625;
                                 let p = self.preview.as_mut().map(|(_, p)| p);
                                 Hero::new(top).render(ui, services, h, p);
+                                if total > 0 {
+                                    egui::Frame::new()
+                                        .fill(theme::SURFACE_LOW)
+                                        .stroke(egui::Stroke::new(1.0, theme::BORDER))
+                                        .corner_radius(12)
+                                        .inner_margin(egui::Margin::same(14))
+                                        .show(ui, |ui| {
+                                            ui.set_width(ui.available_width());
+                                            self.zapped_panel(ui, services, total, &top_zappers[..top_zappers.len().min(3)]);
+                                        });
+                                }
                             }
                         }
 
@@ -289,7 +361,7 @@ impl NostrWidget for HomePage {
                             widgets::StreamList::new(
                                 Id::new("planned-streams"),
                                 events_planned,
-                                Some(theme::semibold("Planned", 15.0)),
+                                Some(theme::semibold(crate::i18n::t("list.planned"), 15.0)),
                             )
                             .render(ui, services);
                         }
@@ -306,7 +378,7 @@ impl NostrWidget for HomePage {
                             widgets::StreamList::new(
                                 Id::new("ended-streams"),
                                 events_ended,
-                                Some(theme::semibold("Ended", 15.0)),
+                                Some(theme::semibold(crate::i18n::t("list.ended"), 15.0)),
                             )
                             .render(ui, services);
                         }
@@ -331,5 +403,41 @@ impl NostrWidget for HomePage {
             &mut self.sub,
             Self::get_filters(),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pull_past_threshold_at_top_refreshes_on_release() {
+        let mut p = PullToRefresh::default();
+        assert!(!p.update(true, true, 60.0));
+        assert!(!p.update(true, true, 40.0));
+        assert!(p.update(true, false, 0.0));
+        assert_eq!(p.distance, 0.0);
+    }
+
+    #[test]
+    fn short_pull_does_not_refresh() {
+        let mut p = PullToRefresh::default();
+        p.update(true, true, 30.0);
+        assert!(!p.update(true, false, 0.0));
+    }
+
+    #[test]
+    fn drag_away_from_top_resets() {
+        let mut p = PullToRefresh::default();
+        p.update(true, true, 80.0);
+        p.update(false, true, 20.0);
+        assert!(!p.update(false, false, 0.0));
+    }
+
+    #[test]
+    fn upward_drag_at_top_does_not_accumulate() {
+        let mut p = PullToRefresh::default();
+        p.update(true, true, -50.0);
+        assert_eq!(p.distance, 0.0);
     }
 }

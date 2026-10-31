@@ -1,0 +1,16 @@
+common.anon=Anonimo
+status.live=IN DIRETTA
+status.planned=PREVISTO
+status.ended=FINE
+list.live=Dal vivo
+list.planned=Pianificato
+list.ended=Terminato
+list.following=Seguiti
+button.login=Login
+button.logout=Logout
+button.follow=Segui
+button.unfollow=Smetti di seguire
+button.share=Condividi
+profile.past_streams=Flussi passati
+button.open_wallet=Aprire nel portafoglio
+button.zap=Zap

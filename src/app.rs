@@ -1,5 +1,5 @@
 use crate::profiles::ProfileLoader;
-use crate::route::{page, RouteAction, RouteServices, RouteType};
+use crate::route::{page, RouteAction, RouteServices, RouteType, SettingsSection};
 use crate::widgets::{Header, NostrWidget, Sidebar};
 use egui::epaint::Margin;
 use egui::Ui;
@@ -28,6 +28,10 @@ pub struct ZapStreamApp {
     startup_link: Option<crate::link::NostrLink>,
     startup_page: Option<String>,
     render_state: Option<egui_wgpu::RenderState>,
+    relay_health: crate::relay_health::RelayHealth,
+    locale_loaded: bool,
+    last_link_poll: std::time::Instant,
+    startup_url: Option<String>,
 }
 
 impl ZapStreamApp {
@@ -46,6 +50,10 @@ impl ZapStreamApp {
             startup_link: startup_link_from_env(),
             startup_page: None,
             render_state,
+            relay_health: Default::default(),
+            locale_loaded: false,
+            last_link_poll: std::time::Instant::now(),
+            startup_url: startup_url(),
             app,
         }
     }
@@ -70,6 +78,50 @@ impl ZapStreamApp {
             startup_link: startup_link_from_env(),
             startup_page: None,
             render_state,
+            relay_health: Default::default(),
+            locale_loaded: false,
+            last_link_poll: std::time::Instant::now(),
+            startup_url: startup_url(),
+        }
+    }
+
+    fn load_locale(&mut self, ctx: &AppContext<'_>) {
+        if self.locale_loaded {
+            return;
+        }
+        self.locale_loaded = true;
+        let dir = ctx.path.path(notedeck::DataPathType::Setting);
+        let code = crate::i18n::load_saved(&dir)
+            .or_else(|| crate::i18n::detect_system_locale().map(str::to_string));
+        if let Some(code) = code {
+            crate::i18n::set_locale(&code);
+        }
+    }
+
+    fn poll_deep_links(&mut self, ctx: &AppContext<'_>) {
+        let mut link = self
+            .startup_url
+            .take()
+            .and_then(|u| crate::deep_link::parse(&u));
+        if link.is_none() && self.last_link_poll.elapsed() >= std::time::Duration::from_millis(500) {
+            self.last_link_poll = std::time::Instant::now();
+            link = crate::deep_link::take_pending(&ctx.path.path(notedeck::DataPathType::Setting));
+        }
+        match link {
+            Some(crate::deep_link::DeepLink::Stream(link)) => {
+                self.widget = Box::new(page::StreamPage::new_from_link(
+                    link.clone(),
+                    self.render_state.clone(),
+                ));
+                self.current = RouteType::EventPage { link, event: None };
+            }
+            Some(crate::deep_link::DeepLink::Profile(pk)) => {
+                self.widget = Box::new(page::ProfilePage::new(pk));
+                self.current = RouteType::ProfilePage {
+                    link: crate::link::NostrLink::profile(&pk),
+                };
+            }
+            None => {}
         }
     }
 
@@ -80,6 +132,14 @@ impl ZapStreamApp {
         self.fonts_set = true;
         crate::theme::install_fonts(ctx);
     }
+}
+
+fn startup_url() -> Option<String> {
+    std::env::var("ZAP_STREAM_URL").ok().or_else(|| {
+        std::env::args()
+            .skip(1)
+            .find(|a| crate::deep_link::parse(a).is_some())
+    })
 }
 
 fn startup_link_from_env() -> Option<crate::link::NostrLink> {
@@ -105,6 +165,7 @@ fn profiles_sub_identity() -> ScopedSubIdentity {
 impl notedeck::App for ZapStreamApp {
     fn render(&mut self, ctx: &mut AppContext<'_>, ui: &mut Ui) -> AppResponse {
         self.setup_fonts(ui.ctx());
+        self.load_locale(ctx);
         crate::theme::apply_style(ui.ctx());
         if let Some(s) = self.frame_stats.as_mut() {
             s.tick();
@@ -115,13 +176,45 @@ impl notedeck::App for ZapStreamApp {
                 self.startup_page = Some(v);
             }
         }
+        if let Ok(nsec) = std::env::var("ZAP_STREAM_NSEC") {
+            if let Some(kp) = crate::route::parse_login_key(&nsec) {
+                let pk = kp.pubkey;
+                ctx.accounts.add_account(kp);
+                ctx.select_account(&pk);
+            }
+            std::env::remove_var("ZAP_STREAM_NSEC");
+        }
         if let Some(page_name) = self.startup_page.take() {
             match page_name.as_str() {
                 "login" => {
                     self.widget = Box::new(page::LoginPage::new());
                     self.current = RouteType::LoginPage;
                 }
+                "categories" => {
+                    self.widget = Box::new(page::CategoriesPage::new());
+                    self.current = RouteType::CategoriesPage;
+                }
                 other => {
+                    if let Some(sec) = other.strip_prefix("settings") {
+                        let section = match sec {
+                            ":profile" => SettingsSection::Profile,
+                            ":wallet" => SettingsSection::Wallet,
+                            ":relays" => SettingsSection::Relays,
+                            _ => SettingsSection::Menu,
+                        };
+                        self.widget = Box::new(page::SettingsPage::new(section));
+                        self.current = RouteType::SettingsPage { section };
+                    }
+                    if let Some(id) = other.strip_prefix("category:") {
+                        self.widget = Box::new(page::ListingPage::new(page::Listing::Category(
+                            id.to_string(),
+                        )));
+                        self.current = RouteType::CategoryPage { id: id.to_string() };
+                    }
+                    if let Some(q) = other.strip_prefix("search:") {
+                        self.widget = Box::new(page::SearchPage::new(q.to_string()));
+                        self.current = RouteType::SearchPage { query: q.to_string() };
+                    }
                     if let Some(hex) = other.strip_prefix("profile:") {
                         if let Ok(pk) = nostr::prelude::hex::decode(hex) {
                             if let Ok(pk) = <[u8; 32]>::try_from(pk.as_slice()) {
@@ -143,6 +236,8 @@ impl notedeck::App for ZapStreamApp {
             self.current = RouteType::EventPage { link, event: None };
         }
 
+        self.poll_deep_links(ctx);
+
         let released = crate::sub::take_released();
         if !released.is_empty() {
             let mut api = ctx.remote.scoped_subs(ctx.accounts);
@@ -156,6 +251,11 @@ impl notedeck::App for ZapStreamApp {
                 match a {
                     RouteAction::DemandProfile(p) => {
                         self.profiles.demand(p);
+                    }
+                    RouteAction::SetLocale(code) => {
+                        crate::i18n::set_locale(&code);
+                        let dir = ctx.path.path(notedeck::DataPathType::Setting);
+                        crate::i18n::save(&dir, &code);
                     }
                     RouteAction::SelectAccount(pk) => {
                         ctx.select_account(&pk);
@@ -186,9 +286,42 @@ impl notedeck::App for ZapStreamApp {
                             link.id.as_bytes().try_into().unwrap(),
                         ));
                     }
+                    RouteType::CategoriesPage => {
+                        self.widget = Box::new(page::CategoriesPage::new());
+                    }
+                    RouteType::CategoryPage { id } => {
+                        self.widget = Box::new(page::ListingPage::new(page::Listing::Category(
+                            id.clone(),
+                        )));
+                    }
+                    RouteType::HashtagPage { id } => {
+                        self.widget = Box::new(page::ListingPage::new(page::Listing::Hashtag(
+                            id.clone(),
+                        )));
+                    }
+                    RouteType::VideosPage => {
+                        self.widget = Box::new(page::ListingPage::new(page::Listing::Videos));
+                    }
+                    RouteType::ShortsPage => {
+                        self.widget = Box::new(page::ListingPage::new(page::Listing::Shorts));
+                    }
+                    RouteType::SearchPage { query } => {
+                        self.widget = Box::new(page::SearchPage::new(query.clone()));
+                    }
+                    RouteType::SettingsPage { section } => {
+                        self.widget = Box::new(page::SettingsPage::new(*section));
+                    }
                     RouteType::Action(_) => unreachable!(),
                 }
             }
+        }
+
+        let (connected, connecting) = crate::relay_health::count(ctx);
+        let health = self
+            .relay_health
+            .observe(connected, connecting, std::time::Instant::now());
+        if health != crate::relay_health::Health::Online {
+            ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
         }
 
         let app_frame = egui::containers::Frame::default().outer_margin(self.frame_margin());
@@ -198,7 +331,13 @@ impl notedeck::App for ZapStreamApp {
             .show(ui, |ui| {
                 let tx = Transaction::new(ctx.ndb).expect("transaction");
                 let wide = ui.available_width() >= crate::theme::WIDE_BREAKPOINT;
-                let on_home = matches!(self.current, RouteType::HomePage);
+                let active = match &self.current {
+                    RouteType::HomePage => "streams",
+                    RouteType::VideosPage => "videos",
+                    RouteType::ShortsPage => "shorts",
+                    RouteType::CategoriesPage | RouteType::CategoryPage { .. } => "categories",
+                    _ => "",
+                };
                 ui.vertical(|ui| {
                     ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
                     let mut svc = RouteServices::new(
@@ -212,6 +351,7 @@ impl notedeck::App for ZapStreamApp {
                         let _t = crate::frame_stats::Section::start("header");
                         Header::new().render(ui, &mut svc, &tx);
                     }
+                    crate::widgets::relay_banner(ui, health);
                     {
                         let _t = crate::frame_stats::Section::start("update");
                         if let Err(e) = self.widget.update(&mut svc) {
@@ -227,7 +367,7 @@ impl notedeck::App for ZapStreamApp {
                                     egui::Frame::new()
                                         .inner_margin(egui::Margin::symmetric(12, 12))
                                         .show(ui, |ui| {
-                                            Sidebar { active_home: on_home }.render(ui, &mut svc);
+                                            Sidebar { active }.render(ui, &mut svc);
                                         });
                                 },
                             );
@@ -258,6 +398,12 @@ impl notedeck::App for ZapStreamApp {
                 .authors(&profiles)
                 .build()])
             .accounts_read_important()
+            .with_explicit_relays(
+                crate::relays::DEFAULT_RELAYS
+                    .iter()
+                    .filter_map(|u| enostr::NormRelayUrl::new(u).ok()),
+                notedeck::SubRelayPolicy::accounts_read_important(),
+            )
             .build();
             ctx.remote
                 .scoped_subs(ctx.accounts)

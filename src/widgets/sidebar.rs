@@ -10,7 +10,7 @@ struct Item {
 }
 
 pub struct Sidebar {
-    pub active_home: bool,
+    pub active: &'static str,
 }
 
 impl Sidebar {
@@ -25,28 +25,28 @@ impl Sidebar {
     fn rows(&self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
         let items = [
             Item {
-                label: "Streams",
+                label: crate::i18n::t("nav.streams"),
                 icon: include_bytes!("../resources/icons/signal.svg"),
-                active: self.active_home,
+                active: self.active == "streams",
                 route: Some(RouteType::HomePage),
             },
             Item {
-                label: "Videos",
+                label: crate::i18n::t("nav.videos"),
                 icon: include_bytes!("../resources/icons/play.svg"),
-                active: false,
-                route: None,
+                active: self.active == "videos",
+                route: Some(RouteType::VideosPage),
             },
             Item {
-                label: "Shorts",
+                label: crate::i18n::t("nav.shorts"),
                 icon: include_bytes!("../resources/icons/film.svg"),
-                active: false,
-                route: None,
+                active: self.active == "shorts",
+                route: Some(RouteType::ShortsPage),
             },
             Item {
-                label: "Categories",
+                label: crate::i18n::t("nav.categories"),
                 icon: include_bytes!("../resources/icons/grid.svg"),
-                active: false,
-                route: None,
+                active: self.active == "categories",
+                route: Some(RouteType::CategoriesPage),
             },
         ];
         for item in items {

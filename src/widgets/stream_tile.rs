@@ -42,9 +42,9 @@ pub fn paint_cover(
 
 pub fn paint_live_pill(painter: &Painter, rect: Rect, status: StreamStatus) {
     let label = match status {
-        StreamStatus::Live => "Live",
-        StreamStatus::Planned => "Planned",
-        StreamStatus::Ended => "Ended",
+        StreamStatus::Live => crate::i18n::t("status.live"),
+        StreamStatus::Planned => crate::i18n::t("status.planned"),
+        StreamStatus::Ended => crate::i18n::t("status.ended"),
     };
     let galley = painter.layout_no_wrap(
         label.to_string(),
@@ -105,7 +105,7 @@ impl<'a> StreamEvent<'a> {
             let response = response.on_hover_and_drag_cursor(CursorIcon::PointingHand);
             let mut open = response.clicked();
 
-            let title = theme::display_bold_text(self.event.title().unwrap_or("Untitled"), 19.0);
+            let title = theme::display_bold_text(self.event.title().unwrap_or(crate::i18n::t("common.untitled")), 19.0);
             let t = ui
                 .add(Label::new(title).wrap_mode(TextWrapMode::Truncate).sense(Sense::click()))
                 .on_hover_and_drag_cursor(CursorIcon::PointingHand);
@@ -113,7 +113,7 @@ impl<'a> StreamEvent<'a> {
 
             let name = host_profile
                 .and_then(|p| p.name())
-                .unwrap_or("Nostrich")
+                .unwrap_or(crate::i18n::t("common.anon"))
                 .to_string();
             ui.add(
                 Label::new(theme::medium(name, 14.5).color(MUTED))

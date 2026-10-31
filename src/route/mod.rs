@@ -18,15 +18,31 @@ use std::sync::mpsc;
 use std::task::Poll;
 
 mod home;
+pub mod listing;
 mod login;
 mod profile;
+mod search;
+mod settings;
 mod stream;
+
+pub use login::parse_key as parse_login_key;
 
 pub mod page {
     pub use super::home::HomePage;
+    pub use super::listing::{CategoriesPage, Listing, ListingPage};
     pub use super::login::LoginPage;
     pub use super::profile::ProfilePage;
+    pub use super::search::SearchPage;
+    pub use super::settings::SettingsPage;
     pub use super::stream::StreamPage;
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum SettingsSection {
+    Menu,
+    Profile,
+    Wallet,
+    Relays,
 }
 
 #[derive(PartialEq)]
@@ -40,6 +56,13 @@ pub enum RouteType {
         link: NostrLink,
     },
     LoginPage,
+    CategoriesPage,
+    CategoryPage { id: String },
+    HashtagPage { id: String },
+    VideosPage,
+    ShortsPage,
+    SearchPage { query: String },
+    SettingsPage { section: SettingsSection },
 
     // special kind for modifying route state
     Action(RouteAction),
@@ -50,6 +73,7 @@ pub enum RouteAction {
     DemandProfile([u8; 32]),
     SelectAccount(enostr::Pubkey),
     Logout(enostr::Pubkey),
+    SetLocale(String),
 }
 
 pub struct RouteServices<'a, 'ctx> {
@@ -99,12 +123,20 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
         {
             warn!("Failed to submit event {}", e);
         }
-        let relays = self
+        let mut relays = self
             .ctx
             .accounts
             .selected_account_write_relays()
             .into_iter()
             .collect::<Vec<RelayId>>();
+        for url in crate::relays::DEFAULT_RELAYS {
+            if let Ok(u) = enostr::NormRelayUrl::new(url) {
+                let id = RelayId::Websocket(u);
+                if !relays.contains(&id) {
+                    relays.push(id);
+                }
+            }
+        }
         self.ctx
             .remote
             .publisher_explicit()
@@ -219,24 +251,71 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
         }
     }
 
-    pub fn publish_mute_list(&mut self, tags: Vec<Vec<String>>, content: &str) {
-        let Some(key) = self.current_account_keys() else {
+    pub fn me(&self) -> Option<[u8; 32]> {
+        self.current_account_keys()
+            .map(|k| k.public_key().to_bytes())
+    }
+
+    pub fn can_sign(&self) -> bool {
+        self.current_account_keys().is_some()
+    }
+
+    pub fn own_contact_tags(&self) -> Vec<Vec<String>> {
+        let me = *self.ctx.accounts.get_selected_account().key.pubkey.bytes();
+        let filter = nostrdb::Filter::new().kinds([3]).authors(&[me]).limit(1).build();
+        self.ctx
+            .ndb
+            .query(self.tx, &[filter], 1)
+            .ok()
+            .and_then(|r| r.into_iter().next())
+            .map(|r| crate::contacts::tags_from_note(&r.note))
+            .unwrap_or_default()
+    }
+
+    pub fn set_following(&mut self, target: &[u8; 32], follow: bool) {
+        let Some(keys) = self.current_account_keys() else {
             return;
         };
-        let mut builder = EventBuilder::new(Kind::MuteList, content);
-        for t in tags {
-            if let Ok(tag) = Tag::parse(t) {
-                builder = builder.tag(tag);
-            }
-        }
-        if let Ok(ev) = builder.sign_with_keys(&key) {
+        let hex = nostr::prelude::hex::encode(target);
+        let tags = crate::contacts::with_follow(self.own_contact_tags(), &hex, follow);
+        let tags = tags.into_iter().filter_map(|t| Tag::parse(t).ok());
+        if let Ok(ev) = EventBuilder::new(Kind::ContactList, "")
+            .tags(tags)
+            .sign_with_keys(&keys)
+        {
             self.broadcast_event(ev);
         }
     }
 
-    pub fn me(&self) -> Option<[u8; 32]> {
-        self.current_account_keys()
-            .map(|k| k.public_key().to_bytes())
+    pub fn own_mute_tags(&self) -> Vec<Vec<String>> {
+        let me = *self.ctx.accounts.get_selected_account().key.pubkey.bytes();
+        let filter = nostrdb::Filter::new().kinds([10_000]).authors(&[me]).limit(1).build();
+        self.ctx
+            .ndb
+            .query(self.tx, &[filter], 1)
+            .ok()
+            .and_then(|r| r.into_iter().next())
+            .map(|r| crate::contacts::tags_from_note(&r.note))
+            .unwrap_or_default()
+    }
+
+    pub fn is_muted(&self, target: &[u8; 32]) -> bool {
+        crate::contacts::is_muted(&self.own_mute_tags(), &nostr::prelude::hex::encode(target))
+    }
+
+    pub fn set_muted(&mut self, target: &[u8; 32], mute: bool) {
+        let Some(keys) = self.current_account_keys() else {
+            return;
+        };
+        let hex = nostr::prelude::hex::encode(target);
+        let tags = crate::contacts::with_mute(self.own_mute_tags(), &hex, mute);
+        let tags = tags.into_iter().filter_map(|t| Tag::parse(t).ok());
+        if let Ok(ev) = EventBuilder::new(Kind::MuteList, "")
+            .tags(tags)
+            .sign_with_keys(&keys)
+        {
+            self.broadcast_event(ev);
+        }
     }
 
     pub fn current_account_keys(&self) -> Option<Keys> {

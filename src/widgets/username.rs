@@ -16,7 +16,7 @@ impl Widget for Username<'_> {
     fn ui(self, ui: &mut Ui) -> Response {
         let name = self
             .profile
-            .map_or("Nostrich", |f| f.name().map_or("Nostrich", |f| f));
+            .map_or(crate::i18n::t("common.anon"), |f| f.name().map_or(crate::i18n::t("common.anon"), |f| f));
         let name = RichText::new(name).size(self.size).color(Color32::WHITE);
         ui.add(Label::new(name).wrap_mode(TextWrapMode::Truncate))
     }

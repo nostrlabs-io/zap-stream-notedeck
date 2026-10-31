@@ -1,0 +1,16 @@
+common.anon=Anônimo
+status.live=AO VIVO
+status.planned=PLANEJADO
+status.ended=FINALIZADO
+list.live=Ao vivo
+list.planned=Planejado
+list.ended=Encerrado
+list.following=Seguindo
+button.login=Entrar
+button.logout=Sair
+button.follow=Seguir
+button.unfollow=Deixar de seguir
+button.share=Compartilhar
+profile.past_streams=Transmissões Passadas
+button.open_wallet=Abrir na carteira
+button.zap=Zap

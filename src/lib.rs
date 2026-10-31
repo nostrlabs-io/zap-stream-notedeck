@@ -1,15 +1,25 @@
 #[cfg(target_os = "android")]
 mod android;
+mod android_window;
 pub mod app;
 mod chat_data;
 mod chat_model;
 mod chat_text;
+mod blossom;
+mod contacts;
+mod deep_link;
 mod frame_stats;
+mod hls;
+mod i18n;
+mod relay_health;
+mod player_health;
 pub mod relays;
 mod link;
 mod note_ref;
 mod note_util;
 mod note_view;
+mod profile_edit;
+mod relay_list;
 mod profiles;
 mod route;
 mod stream_info;
