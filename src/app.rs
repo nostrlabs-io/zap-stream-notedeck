@@ -121,7 +121,21 @@ impl notedeck::App for ZapStreamApp {
                     self.widget = Box::new(page::LoginPage::new());
                     self.current = RouteType::LoginPage;
                 }
+                "categories" => {
+                    self.widget = Box::new(page::CategoriesPage::new());
+                    self.current = RouteType::CategoriesPage;
+                }
                 other => {
+                    if let Some(id) = other.strip_prefix("category:") {
+                        self.widget = Box::new(page::ListingPage::new(page::Listing::Category(
+                            id.to_string(),
+                        )));
+                        self.current = RouteType::CategoryPage { id: id.to_string() };
+                    }
+                    if let Some(q) = other.strip_prefix("search:") {
+                        self.widget = Box::new(page::SearchPage::new(q.to_string()));
+                        self.current = RouteType::SearchPage { query: q.to_string() };
+                    }
                     if let Some(hex) = other.strip_prefix("profile:") {
                         if let Ok(pk) = nostr::prelude::hex::decode(hex) {
                             if let Ok(pk) = <[u8; 32]>::try_from(pk.as_slice()) {
@@ -186,6 +200,28 @@ impl notedeck::App for ZapStreamApp {
                             link.id.as_bytes().try_into().unwrap(),
                         ));
                     }
+                    RouteType::CategoriesPage => {
+                        self.widget = Box::new(page::CategoriesPage::new());
+                    }
+                    RouteType::CategoryPage { id } => {
+                        self.widget = Box::new(page::ListingPage::new(page::Listing::Category(
+                            id.clone(),
+                        )));
+                    }
+                    RouteType::HashtagPage { id } => {
+                        self.widget = Box::new(page::ListingPage::new(page::Listing::Hashtag(
+                            id.clone(),
+                        )));
+                    }
+                    RouteType::VideosPage => {
+                        self.widget = Box::new(page::ListingPage::new(page::Listing::Videos));
+                    }
+                    RouteType::ShortsPage => {
+                        self.widget = Box::new(page::ListingPage::new(page::Listing::Shorts));
+                    }
+                    RouteType::SearchPage { query } => {
+                        self.widget = Box::new(page::SearchPage::new(query.clone()));
+                    }
                     RouteType::Action(_) => unreachable!(),
                 }
             }
@@ -198,7 +234,13 @@ impl notedeck::App for ZapStreamApp {
             .show(ui, |ui| {
                 let tx = Transaction::new(ctx.ndb).expect("transaction");
                 let wide = ui.available_width() >= crate::theme::WIDE_BREAKPOINT;
-                let on_home = matches!(self.current, RouteType::HomePage);
+                let active = match &self.current {
+                    RouteType::HomePage => "Streams",
+                    RouteType::VideosPage => "Videos",
+                    RouteType::ShortsPage => "Shorts",
+                    RouteType::CategoriesPage | RouteType::CategoryPage { .. } => "Categories",
+                    _ => "",
+                };
                 ui.vertical(|ui| {
                     ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
                     let mut svc = RouteServices::new(
@@ -227,7 +269,7 @@ impl notedeck::App for ZapStreamApp {
                                     egui::Frame::new()
                                         .inner_margin(egui::Margin::symmetric(12, 12))
                                         .show(ui, |ui| {
-                                            Sidebar { active_home: on_home }.render(ui, &mut svc);
+                                            Sidebar { active }.render(ui, &mut svc);
                                         });
                                 },
                             );

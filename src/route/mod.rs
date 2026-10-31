@@ -17,14 +17,18 @@ use std::sync::mpsc;
 use std::task::Poll;
 
 mod home;
+pub mod listing;
 mod login;
 mod profile;
+mod search;
 mod stream;
 
 pub mod page {
     pub use super::home::HomePage;
+    pub use super::listing::{CategoriesPage, Listing, ListingPage};
     pub use super::login::LoginPage;
     pub use super::profile::ProfilePage;
+    pub use super::search::SearchPage;
     pub use super::stream::StreamPage;
 }
 
@@ -39,6 +43,12 @@ pub enum RouteType {
         link: NostrLink,
     },
     LoginPage,
+    CategoriesPage,
+    CategoryPage { id: String },
+    HashtagPage { id: String },
+    VideosPage,
+    ShortsPage,
+    SearchPage { query: String },
 
     // special kind for modifying route state
     Action(RouteAction),
