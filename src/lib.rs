@@ -2,6 +2,7 @@
 mod android;
 pub mod app;
 mod frame_stats;
+mod hls;
 pub mod relays;
 mod link;
 mod note_ref;
