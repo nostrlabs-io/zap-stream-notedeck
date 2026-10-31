@@ -10,7 +10,7 @@ struct Item {
 }
 
 pub struct Sidebar {
-    pub active_home: bool,
+    pub active: &'static str,
 }
 
 impl Sidebar {
@@ -27,26 +27,26 @@ impl Sidebar {
             Item {
                 label: "Streams",
                 icon: include_bytes!("../resources/icons/signal.svg"),
-                active: self.active_home,
+                active: self.active == "Streams",
                 route: Some(RouteType::HomePage),
             },
             Item {
                 label: "Videos",
                 icon: include_bytes!("../resources/icons/play.svg"),
-                active: false,
-                route: None,
+                active: self.active == "Videos",
+                route: Some(RouteType::VideosPage),
             },
             Item {
                 label: "Shorts",
                 icon: include_bytes!("../resources/icons/film.svg"),
-                active: false,
-                route: None,
+                active: self.active == "Shorts",
+                route: Some(RouteType::ShortsPage),
             },
             Item {
                 label: "Categories",
                 icon: include_bytes!("../resources/icons/grid.svg"),
-                active: false,
-                route: None,
+                active: self.active == "Categories",
+                route: Some(RouteType::CategoriesPage),
             },
         ];
         for item in items {

@@ -68,7 +68,17 @@ impl<'a> StreamTitle<'a> {
                     ui.horizontal_wrapped(|ui| {
                         ui.spacing_mut().item_spacing.x = 14.0;
                         for t in tags {
-                            ui.label(theme::medium(t, 15.0).color(MUTED));
+                            let r = ui
+                                .add(
+                                    Label::new(theme::medium(format!("#{}", t), 15.0).color(MUTED))
+                                        .sense(egui::Sense::click()),
+                                )
+                                .on_hover_and_drag_cursor(egui::CursorIcon::PointingHand);
+                            if r.clicked() {
+                                services.navigate(crate::route::RouteType::HashtagPage {
+                                    id: t.to_lowercase(),
+                                });
+                            }
                         }
                     });
                 }

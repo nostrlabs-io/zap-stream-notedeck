@@ -121,6 +121,7 @@ impl Header {
                             let mut query: String =
                                 ui.ctx().data(|d| d.get_temp(qid)).unwrap_or_default();
                             let before = query.clone();
+                            let mut submitted = false;
                             Frame::new()
                                 .fill(SURFACE_LOW)
                                 .stroke(Stroke::new(1.0, BORDER))
@@ -129,7 +130,7 @@ impl Header {
                                 .show(ui, |ui| {
                                     ui.set_width(w - 26.0);
                                     ui.set_height(18.0);
-                                    ui.add(
+                                    let edit = ui.add(
                                         TextEdit::singleline(&mut query)
                                             .frame(egui::Frame::NONE)
                                             .hint_text(
@@ -138,9 +139,29 @@ impl Header {
                                             )
                                             .desired_width(f32::INFINITY),
                                     );
+                                    submitted = edit.lost_focus()
+                                        && ui.input(|i| i.key_pressed(egui::Key::Enter));
                                 });
+                            if submitted && !query.trim().is_empty() {
+                                services.navigate(RouteType::SearchPage {
+                                    query: query.trim().to_string(),
+                                });
+                                query.clear();
+                            }
                             if query != before {
                                 ui.ctx().data_mut(|d| d.insert_temp(qid, query));
+                            }
+                        } else {
+                            let r = ui
+                                .add(
+                                    egui::Label::new(theme::semibold("Search", 15.0).color(MUTED))
+                                        .sense(Sense::click()),
+                                )
+                                .on_hover_and_drag_cursor(CursorIcon::PointingHand);
+                            if r.clicked() {
+                                services.navigate(RouteType::SearchPage {
+                                    query: String::new(),
+                                });
                             }
                         }
                     });
