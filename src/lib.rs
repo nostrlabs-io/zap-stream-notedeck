@@ -1,6 +1,7 @@
 #[cfg(target_os = "android")]
 mod android;
 pub mod app;
+mod chat_text;
 mod frame_stats;
 pub mod relays;
 mod link;
