@@ -16,7 +16,7 @@ mod stream_title;
 mod text_input;
 mod username;
 mod write_chat;
-mod zap;
+pub(crate) mod zap;
 
 use crate::note_ref::NoteRef;
 use crate::route::RouteServices;
