@@ -25,7 +25,9 @@ struct ModalState {
 
 pub struct Chat {
     link: NostrLink,
-    stream: NoteKey,
+    stream: Option<NoteKey>,
+    opened: std::time::Instant,
+    logged: u8,
     events: HashSet<NoteRef>,
     aux: HashSet<NoteRef>,
     sub: Option<SubRef>,
@@ -43,10 +45,12 @@ pub struct Chat {
 }
 
 impl Chat {
-    pub fn new<'a>(link: NostrLink, stream: NoteKey) -> Self {
+    pub fn new(link: NostrLink, stream: Option<NoteKey>) -> Self {
         Self {
             link,
             stream,
+            opened: std::time::Instant::now(),
+            logged: 0,
             events: HashSet::new(),
             aux: HashSet::new(),
             sub: None,
@@ -61,6 +65,26 @@ impl Chat {
             modal: None,
             top: Vec::new(),
             top_len: usize::MAX,
+        }
+    }
+
+    pub fn set_stream(&mut self, stream: NoteKey) {
+        self.stream = Some(stream);
+    }
+
+    fn host(&self, services: &RouteServices<'_, '_>) -> Option<[u8; 32]> {
+        if let Some(key) = self.stream {
+            if let Ok(note) = services.ctx.ndb.get_note_by_key(services.tx, key) {
+                return Some(*note.host());
+            }
+        }
+        self.link.author
+    }
+
+    fn mark(&mut self, bit: u8, what: &str) {
+        if self.logged & bit == 0 {
+            self.logged |= bit;
+            log::info!("chat_timing {} at {:?}", what, self.opened.elapsed());
         }
     }
 
@@ -267,12 +291,10 @@ impl Chat {
 
 impl NostrWidget for Chat {
     fn render(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) -> Response {
-        let stream = services
-            .ctx
-            .ndb
-            .get_note_by_key(services.tx, self.stream)
-            .unwrap();
-        let host = *stream.host();
+        let host = self.host(services).unwrap_or_default();
+        if !self.data.rows.is_empty() {
+            self.mark(8, "first_render_with_rows");
+        }
         let stream_tag = self.link.to_tag_value();
 
         let width = ui.available_width();
@@ -323,15 +345,18 @@ impl NostrWidget for Chat {
     }
 
     fn update(&mut self, services: &mut RouteServices<'_, '_>) -> anyhow::Result<()> {
-        let stream = services
-            .ctx
-            .ndb
-            .get_note_by_key(services.tx, self.stream)
-            .map_err(|e| anyhow::anyhow!("{}", e))?;
-        let host = *stream.host();
+        let Some(host) = self.host(services) else {
+            return Ok(());
+        };
         let me = services.me();
         let filters = self.main_filters(&host, me);
+        if self.sub.is_none() {
+            self.mark(1, "sub_start");
+        }
         sub_or_poll(services.ctx, services.tx, &mut self.events, &mut self.sub, filters)?;
+        if !self.events.is_empty() {
+            self.mark(2, "first_events");
+        }
 
         if !self.aux_wants.is_empty() || self.aux_sub.is_some() {
             if let Some(sub) = &self.aux_sub {
@@ -369,6 +394,9 @@ impl NostrWidget for Chat {
                     sub_or_poll(services.ctx, services.tx, &mut sink, &mut self.aux_sub, filters)?;
                     self.aux.extend(sink);
                 }
+            }
+            if !data.rows.is_empty() {
+                self.mark(4, "first_build");
             }
             self.data = data;
         }

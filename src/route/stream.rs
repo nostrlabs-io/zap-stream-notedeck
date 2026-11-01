@@ -280,10 +280,8 @@ impl NostrWidget for StreamPage {
                 self.goal = goal_id.map(Goal::new);
             }
 
-            if self.chat.is_none() {
-                let ok = event.key().unwrap();
-                let chat = Chat::new(self.link.clone(), ok);
-                self.chat = Some(chat);
+            if let (Some(c), Some(k)) = (self.chat.as_mut(), event.key()) {
+                c.set_stream(k);
             }
 
             if ui.available_width() < 720.0 {
@@ -297,6 +295,9 @@ impl NostrWidget for StreamPage {
     }
 
     fn update(&mut self, services: &mut RouteServices<'_, '_>) -> anyhow::Result<()> {
+        if self.chat.is_none() {
+            self.chat = Some(Chat::new(self.link.clone(), None));
+        }
         let filters = self.get_filters();
         sub_or_poll(
             services.ctx,
