@@ -430,30 +430,8 @@ impl notedeck::App for ZapStreamApp {
     }
 }
 
-#[cfg(not(target_os = "android"))]
 impl ZapStreamApp {
     fn frame_margin(&self) -> Margin {
         Margin::ZERO
-    }
-}
-
-#[cfg(target_os = "android")]
-impl ZapStreamApp {
-    fn frame_margin(&self) -> Margin {
-        if let Some(wd) = self.app.native_window() {
-            let (w, h) = (wd.width(), wd.height());
-            let c_rect = self.app.content_rect();
-            let dpi = self.app.config().density().unwrap_or(160);
-            let dpi_scale = dpi as f32 / 160.0;
-            let to_i8 = |v: f32| v.round().clamp(0.0, 127.0) as i8;
-            Margin {
-                bottom: to_i8((h - c_rect.bottom) as f32 / dpi_scale),
-                left: to_i8(c_rect.left as f32 / dpi_scale),
-                right: to_i8((w - c_rect.right) as f32 / dpi_scale),
-                top: to_i8((c_rect.top - (h - c_rect.bottom)) as f32 / dpi_scale),
-            }
-        } else {
-            Margin::ZERO
-        }
     }
 }
