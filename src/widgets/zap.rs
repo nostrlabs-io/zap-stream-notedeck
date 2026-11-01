@@ -13,12 +13,12 @@ use lnurl::pay::{LnURLPayInvoice, PayResponse};
 use nostr::prelude::{hex, ZapRequestData};
 use nostr::{serde_json, EventBuilder, JsonUtil, Kind, PublicKey, Tag, Url};
 use nostrdb::Note;
+use notedeck::get_current_wallet;
+use nwc::nostr::nips::nip47::PayInvoiceResponse;
+use poll_promise::Promise;
 use std::fmt::{Display, Formatter};
 use std::sync::{Arc, Mutex};
 use std::task::Poll;
-use notedeck::get_current_wallet;
-use poll_promise::Promise;
-use nwc::nostr::nips::nip47::PayInvoiceResponse;
 
 pub enum ZapTarget<'a> {
     PublicKey { pubkey: [u8; 32] },
@@ -37,9 +37,15 @@ impl Display for ZapTarget<'_> {
 #[derive(Clone)]
 pub enum ZapState {
     NotStarted,
-    Ready { service: PayResponse },
-    FetchingInvoice { callback: String },
-    Invoice { invoice: LnURLPayInvoice },
+    Ready {
+        service: PayResponse,
+    },
+    FetchingInvoice {
+        callback: String,
+    },
+    Invoice {
+        invoice: LnURLPayInvoice,
+    },
     Paying {
         invoice: LnURLPayInvoice,
         payment: Arc<Mutex<Promise<Result<PayInvoiceResponse, nwc::Error>>>>,
@@ -67,18 +73,25 @@ impl<'a> ZapButton<'a> {
 
     pub fn render(self, ui: &mut Ui, services: &mut RouteServices) -> Response {
         let can_sign = services.can_sign();
-        let resp = Button::pill().disabled(!can_sign).text(ui, crate::i18n::t("button.zap"));
+        let resp = Button::pill()
+            .disabled(!can_sign)
+            .text(ui, crate::i18n::t("button.zap"));
         let open_id = egui::Id::new("zap_modal_open");
         if !can_sign {
             return resp.on_hover_text("Log in with a private key to zap");
         }
-        if resp.clicked() || std::env::var_os("ZAP_STREAM_DEBUG_ZAP").is_some_and(|_| {
-            std::env::remove_var("ZAP_STREAM_DEBUG_ZAP");
-            true
-        }) {
+        if resp.clicked()
+            || std::env::var_os("ZAP_STREAM_DEBUG_ZAP").is_some_and(|_| {
+                std::env::remove_var("ZAP_STREAM_DEBUG_ZAP");
+                true
+            })
+        {
             ui.ctx().data_mut(|d| d.insert_temp(open_id, true));
         }
-        let open = ui.ctx().data(|d| d.get_temp::<bool>(open_id)).unwrap_or(false);
+        let open = ui
+            .ctx()
+            .data(|d| d.get_temp::<bool>(open_id))
+            .unwrap_or(false);
         if !open {
             return resp;
         }
@@ -125,11 +138,21 @@ impl<'a> ZapButton<'a> {
                         _ => {}
                     }
                 }
-                ZapState::Paying { invoice, payment } => match payment.lock().unwrap().ready().map(|r| r.as_ref().map(|_| ()).map_err(|e| e.to_string())) {
+                ZapState::Paying { invoice, payment } => match payment
+                    .lock()
+                    .unwrap()
+                    .ready()
+                    .map(|r| r.as_ref().map(|_| ()).map_err(|e| e.to_string()))
+                {
                     Some(Ok(())) => services.set("zap_state", ZapState::Paid),
                     Some(Err(e)) => {
                         services.set("zap_error", e);
-                        services.set("zap_state", ZapState::Invoice { invoice: invoice.clone() })
+                        services.set(
+                            "zap_state",
+                            ZapState::Invoice {
+                                invoice: invoice.clone(),
+                            },
+                        )
                     }
                     None => {}
                 },
@@ -141,25 +164,38 @@ impl<'a> ZapButton<'a> {
                     self.render_input(ui, services, pubkey, service);
                 }
                 ZapState::Paying { .. } => {
-                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+                    ui.ctx()
+                        .request_repaint_after(std::time::Duration::from_millis(250));
                     ui.vertical_centered(|ui| {
                         ui.add_space(24.0);
                         ui.spinner();
-                        ui.label(crate::theme::medium("Paying with your wallet", 14.0).color(crate::theme::MUTED));
+                        ui.label(
+                            crate::theme::medium("Paying with your wallet", 14.0)
+                                .color(crate::theme::MUTED),
+                        );
                         ui.add_space(24.0);
                     });
                 }
                 ZapState::Paid => {
                     ui.vertical_centered(|ui| {
                         ui.add_space(24.0);
-                        ui.label(crate::theme::display_bold_text("Zap sent", 26.0).color(crate::theme::ZAP));
+                        ui.label(
+                            crate::theme::display_bold_text("Zap sent", 26.0)
+                                .color(crate::theme::ZAP),
+                        );
                         ui.add_space(24.0);
                     });
                 }
                 ZapState::Invoice { invoice } => {
                     ui.vertical_centered(|ui| {
-                        if let Some(e) = services.get::<String>("zap_error").filter(|e| !e.is_empty()) {
-                            ui.label(RichText::new(format!("Wallet payment failed: {}", e)).color(crate::theme::MUTED));
+                        if let Some(e) = services
+                            .get::<String>("zap_error")
+                            .filter(|e| !e.is_empty())
+                        {
+                            ui.label(
+                                RichText::new(format!("Wallet payment failed: {}", e))
+                                    .color(crate::theme::MUTED),
+                            );
                         }
                         qr_code(ui, invoice.pr.as_bytes(), 256.0);
 
@@ -174,7 +210,10 @@ impl<'a> ZapButton<'a> {
                             if Button::new().text(ui, "Copy invoice").clicked() {
                                 ui.ctx().copy_text(invoice.pr.clone());
                             }
-                            if Button::primary().text(ui, crate::i18n::t("button.open_wallet")).clicked() {
+                            if Button::primary()
+                                .text(ui, crate::i18n::t("button.open_wallet"))
+                                .clicked()
+                            {
                                 ui.ctx().open_url(egui::OpenUrl::same_tab(format!(
                                     "lightning:{}",
                                     invoice.pr
@@ -189,7 +228,15 @@ impl<'a> ZapButton<'a> {
                     });
                 }
                 ZapState::Error(e) => {
-                    ui.label(e);
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(8.0);
+                        ui.label(crate::theme::display_bold_text("Cannot zap", 22.0));
+                        ui.label(RichText::new(e).color(crate::theme::MUTED));
+                        ui.add_space(8.0);
+                        if Button::new().text(ui, "Close").clicked() {
+                            ui.close();
+                        }
+                    });
                 }
                 _ => {}
             }
@@ -265,7 +312,10 @@ impl<'a> ZapButton<'a> {
         };
         let fallback_name = self.target.to_string();
         let target_name = target_name.unwrap_or(&fallback_name);
-        ui.label(crate::theme::display_bold_text(format!("Zap {}", target_name), 26.0));
+        ui.label(crate::theme::display_bold_text(
+            format!("Zap {}", target_name),
+            26.0,
+        ));
 
         ui.label(crate::theme::medium("Zap amount in sats", 14.0).color(crate::theme::MUTED));
 
@@ -274,33 +324,31 @@ impl<'a> ZapButton<'a> {
             21, 69, 121, 420, 1_000, 2_100, 4_200, 10_000, 21_000, 42_000, 69_000, 100_000,
             210_000, 500_000, 1_000_000,
         ];
-        const COLS: u32 = 5;
         let selected_amount = services.get("zap_amount").unwrap_or(0);
-        Grid::new("zap_amounts_grid").show(ui, |ui| {
-            let mut ctr = 0;
+        ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
             for x in SATS_AMOUNTS {
-                if Button::new()
+                let clicked = Button::new()
                     .with_color(if selected_amount == *x {
                         PRIMARY
                     } else {
                         NEUTRAL_800
                     })
-                    .padding(egui::Margin::symmetric(10, 8))
+                    .padding(egui::Margin::symmetric(12, 8))
                     .text(ui, &format_sats(*x as f32))
-                    .clicked()
-                {
+                    .clicked();
+                if clicked {
                     services.set("zap_amount", *x);
-                }
-                ctr += 1;
-                if ctr % COLS == 0 {
-                    ui.end_row();
                 }
             }
         });
 
         // comment section
         let mut zap_comment = services.get("zap_comment").unwrap_or(String::new());
-        ui.label(crate::theme::medium(format!("Your comment for {}", target_name), 14.0).color(crate::theme::MUTED));
+        ui.label(
+            crate::theme::medium(format!("Your comment for {}", target_name), 14.0)
+                .color(crate::theme::MUTED),
+        );
         let old_len = zap_comment.len();
         Frame::new()
             .stroke(egui::Stroke::new(1.0, crate::theme::BORDER))
@@ -312,7 +360,12 @@ impl<'a> ZapButton<'a> {
                     .ui(ui)
             });
 
-        if Button::primary().radius(255).padding(egui::Margin::symmetric(24, 10)).text(ui, crate::i18n::t("button.zap")).clicked() {
+        if Button::primary()
+            .radius(255)
+            .padding(egui::Margin::symmetric(24, 10))
+            .text(ui, crate::i18n::t("button.zap"))
+            .clicked()
+        {
             // on-click setup callback URL and transition state
             match self.zap_callback(
                 services,
@@ -324,10 +377,10 @@ impl<'a> ZapButton<'a> {
                 Ok(callback) => {
                     services.set("zap_error", String::new());
                     services.set(
-                    "zap_state",
-                    ZapState::FetchingInvoice {
-                        callback: callback.to_string(),
-                    },
+                        "zap_state",
+                        ZapState::FetchingInvoice {
+                            callback: callback.to_string(),
+                        },
                     )
                 }
                 Err(e) => services.set("zap_state", ZapState::Error(e.to_string())),

@@ -176,9 +176,11 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
     }
 
     pub fn fetch_lnurlp(&mut self, pubkey: &[u8; 32]) -> anyhow::Result<Poll<PayResponse>> {
-        let target = self
-            .profile(pubkey)
-            .and_then(|p| p.lud16())
+        let Some(profile) = self.profile(pubkey) else {
+            return Ok(Poll::Pending);
+        };
+        let target = profile
+            .lud16()
             .ok_or(anyhow!("No lightning address found"))?;
 
         let addr = LightningAddress::new(target)?;
