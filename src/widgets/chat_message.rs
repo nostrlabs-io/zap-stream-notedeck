@@ -50,6 +50,8 @@ fn flush(ui: &mut Ui, job: &mut LayoutJob) {
 pub fn render(ui: &mut Ui, services: &mut RouteServices<'_, '_>, data: &ChatData, msg: &Message) {
     let profile = services.profile(msg.author);
     ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = 8.0;
+        ui.add_space(12.0);
         let avatar = Avatar::from_profile(&profile)
             .size(24.)
             .render(ui, services.ctx);
@@ -103,12 +105,19 @@ pub fn render(ui: &mut Ui, services: &mut RouteServices<'_, '_>, data: &ChatData
                         Segment::Url(u) => {
                             flush(ui, &mut job);
                             lead = 0.0;
-                            ui.hyperlink_to(
-                                RichText::new(u)
-                                    .color(PRIMARY)
-                                    .line_height(Some(LINE_HEIGHT)),
-                                u,
-                            );
+                            let link = ui
+                                .add(
+                                    Label::new(
+                                        RichText::new(u)
+                                            .color(PRIMARY)
+                                            .line_height(Some(LINE_HEIGHT)),
+                                    )
+                                    .sense(Sense::click()),
+                                )
+                                .on_hover_cursor(egui::CursorIcon::PointingHand);
+                            if link.clicked() {
+                                crate::android_window::open_url(ui.ctx(), u);
+                            }
                         }
                         Segment::Mention(pk) => {
                             flush(ui, &mut job);

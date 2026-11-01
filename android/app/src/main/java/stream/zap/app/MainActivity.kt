@@ -103,6 +103,18 @@ class MainActivity : GameActivity() {
         }
     }
 
+    fun openUrl(url: String): Boolean {
+        return try {
+            val intent = Intent(Intent.ACTION_VIEW, android.net.Uri.parse(url))
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            true
+        } catch (e: Exception) {
+            Log.w("ZapStream", "openUrl failed: " + e)
+            false
+        }
+    }
+
     fun enterPip() {
         runOnUiThread {
             val params = PictureInPictureParams.Builder()

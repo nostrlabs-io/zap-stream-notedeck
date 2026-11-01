@@ -214,10 +214,10 @@ impl<'a> ZapButton<'a> {
                                 .text(ui, crate::i18n::t("button.open_wallet"))
                                 .clicked()
                             {
-                                ui.ctx().open_url(egui::OpenUrl::same_tab(format!(
-                                    "lightning:{}",
-                                    invoice.pr
-                                )));
+                                crate::android_window::open_url(
+                                    ui.ctx(),
+                                    &format!("lightning:{}", invoice.pr),
+                                );
                             }
                         });
                         if get_current_wallet(services.ctx.accounts, services.ctx.global_wallet)
@@ -325,22 +325,32 @@ impl<'a> ZapButton<'a> {
             210_000, 500_000, 1_000_000,
         ];
         let selected_amount = services.get("zap_amount").unwrap_or(0);
-        for row in SATS_AMOUNTS.chunks(5) {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
+        const COLS: u32 = 5;
+        const GAP: f32 = 6.0;
+        let cell = ((ui.available_width() - GAP * (COLS as f32 - 1.0)) / COLS as f32).floor();
+        for row in SATS_AMOUNTS.chunks(COLS as usize) {
+            ui.horizontal_top(|ui| {
+                ui.spacing_mut().item_spacing = vec2(GAP, GAP);
                 for x in row {
-                    let clicked = Button::new()
-                        .with_color(if selected_amount == *x {
-                            PRIMARY
-                        } else {
-                            NEUTRAL_800
-                        })
-                        .padding(egui::Margin::symmetric(10, 8))
-                        .text(ui, &format_sats(*x as f32))
-                        .clicked();
-                    if clicked {
-                        services.set("zap_amount", *x);
-                    }
+                    ui.allocate_ui_with_layout(
+                        vec2(cell, 0.0),
+                        egui::Layout::top_down(egui::Align::Min),
+                        |ui| {
+                            let clicked = Button::new()
+                                .full_width()
+                                .with_color(if selected_amount == *x {
+                                    PRIMARY
+                                } else {
+                                    NEUTRAL_800
+                                })
+                                .padding(egui::Margin::symmetric(4, 8))
+                                .text(ui, &format_sats(*x as f32))
+                                .clicked();
+                            if clicked {
+                                services.set("zap_amount", *x);
+                            }
+                        },
+                    );
                 }
             });
         }
