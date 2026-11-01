@@ -119,15 +119,29 @@ class MainActivity : GameActivity() {
         File(dir, "pending_link").writeText(data)
     }
 
+    private var insetLeft = 0
+    private var insetTop = 0
+
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        ev.offsetLocation(-insetLeft.toFloat(), -insetTop.toFloat())
+        return super.dispatchTouchEvent(ev)
+    }
+
     private fun setupInsets() {
         val content = window.decorView.findViewById<View>(android.R.id.content)
         ViewCompat.setOnApplyWindowInsetsListener(content) { v, windowInsets ->
-            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.ime())
+            val insets = windowInsets.getInsets(
+                WindowInsetsCompat.Type.systemBars() or
+                    WindowInsetsCompat.Type.displayCutout() or
+                    WindowInsetsCompat.Type.ime()
+            )
             val lp = v.layoutParams as ViewGroup.MarginLayoutParams
             lp.topMargin = insets.top
             lp.leftMargin = insets.left
             lp.bottomMargin = insets.bottom
             lp.rightMargin = insets.right
+            insetLeft = insets.left
+            insetTop = insets.top
             v.layoutParams = lp
             windowInsets
         }
