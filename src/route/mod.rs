@@ -84,6 +84,7 @@ pub struct RouteServices<'a, 'ctx> {
 
     router: mpsc::Sender<RouteType>,
     fetch: &'a mut HashMap<String, Promise<ehttp::Result<Response>>>,
+    mutes: std::cell::RefCell<Option<std::collections::HashSet<String>>>,
 }
 
 impl<'a, 'ctx> RouteServices<'a, 'ctx> {
@@ -100,6 +101,7 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
             ctx,
             router,
             fetch,
+            mutes: std::cell::RefCell::new(None),
         }
     }
 
@@ -255,12 +257,21 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
     }
 
     pub fn me(&self) -> Option<[u8; 32]> {
-        self.current_account_keys()
-            .map(|k| k.public_key().to_bytes())
+        let account = self.ctx.accounts.get_selected_account();
+        account
+            .key
+            .secret_key
+            .as_ref()
+            .map(|_| *account.key.pubkey.bytes())
     }
 
     pub fn can_sign(&self) -> bool {
-        self.current_account_keys().is_some()
+        self.ctx
+            .accounts
+            .get_selected_account()
+            .key
+            .secret_key
+            .is_some()
     }
 
     pub fn own_contact_tags(&self) -> Vec<Vec<String>> {
@@ -303,7 +314,15 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
     }
 
     pub fn is_muted(&self, target: &[u8; 32]) -> bool {
-        crate::contacts::is_muted(&self.own_mute_tags(), &nostr::prelude::hex::encode(target))
+        let mut cache = self.mutes.borrow_mut();
+        let set = cache.get_or_insert_with(|| {
+            self.own_mute_tags()
+                .into_iter()
+                .filter(|t| t.first().map(String::as_str) == Some("p"))
+                .filter_map(|t| t.get(1).cloned())
+                .collect()
+        });
+        set.contains(&nostr::prelude::hex::encode(target))
     }
 
     pub fn set_muted(&mut self, target: &[u8; 32], mute: bool) {
@@ -317,6 +336,7 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
             .tags(tags)
             .sign_with_keys(&keys)
         {
+            *self.mutes.borrow_mut() = None;
             self.broadcast_event(ev);
         }
     }

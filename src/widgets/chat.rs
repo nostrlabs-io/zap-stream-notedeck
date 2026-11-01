@@ -289,8 +289,10 @@ impl NostrWidget for Chat {
             .stick_to_bottom(true)
             .show_viewport(ui, |ui, viewport| {
                 ui.spacing_mut().item_spacing.y = 0.0;
-                let margin = 200.0;
+                let margin = 32.0;
                 let mut y = 0.0;
+                let mut rendered = 0usize;
+                let t0 = std::time::Instant::now();
                 for idx in 0..self.data.rows.len() {
                     let key = self.data.rows[idx].key;
                     let known = self.heights.get(&key).copied();
@@ -302,6 +304,7 @@ impl NostrWidget for Chat {
                         y += h;
                         continue;
                     }
+                    rendered += 1;
                     let rect = ui
                         .scope(|ui| self.render_row(ui, services, idx, host, &stream_tag))
                         .response
@@ -310,6 +313,9 @@ impl NostrWidget for Chat {
                     let measured = rect.height() + 8.0;
                     self.heights.insert(key, measured);
                     y += measured;
+                }
+                if t0.elapsed().as_micros() > 1500 {
+                    log::info!("chat_rows rendered={} total={} {:?}", rendered, self.data.rows.len(), t0.elapsed());
                 }
             });
         self.render_modal(ui, services, host);
