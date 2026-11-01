@@ -46,7 +46,7 @@ pub enum SettingsSection {
     Broadcast,
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum RouteType {
     HomePage,
     EventPage {
@@ -69,12 +69,13 @@ pub enum RouteType {
     Action(RouteAction),
 }
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub enum RouteAction {
     DemandProfile([u8; 32]),
     SelectAccount(enostr::Pubkey),
     Logout(enostr::Pubkey),
     SetLocale(String),
+    Back,
 }
 
 pub struct RouteServices<'a, 'ctx> {

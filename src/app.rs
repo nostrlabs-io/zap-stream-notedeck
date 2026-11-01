@@ -14,6 +14,7 @@ use std::sync::mpsc;
 
 pub struct ZapStreamApp {
     current: RouteType,
+    history: Vec<RouteType>,
     routes_rx: mpsc::Receiver<RouteType>,
     routes_tx: mpsc::Sender<RouteType>,
 
@@ -40,6 +41,7 @@ impl ZapStreamApp {
         let (tx, rx) = mpsc::channel();
         Self {
             current: RouteType::HomePage,
+            history: Vec::new(),
             widget: Box::new(page::HomePage::new(render_state.clone())),
             profiles: ProfileLoader::new(),
             routes_tx: tx,
@@ -68,6 +70,7 @@ impl ZapStreamApp {
         let (tx, rx) = mpsc::channel();
         Self {
             current: RouteType::HomePage,
+            history: Vec::new(),
             widget: Box::new(page::HomePage::new(render_state.clone())),
             profiles: ProfileLoader::new(),
             routes_tx: tx,
@@ -98,6 +101,66 @@ impl ZapStreamApp {
         }
     }
 
+    fn push_current(&mut self) {
+        if self.history.last() != Some(&self.current) {
+            self.history.push(self.current.clone());
+        }
+        if self.history.len() > 50 {
+            self.history.remove(0);
+        }
+    }
+
+    fn open_route(&mut self, route: RouteType) {
+        self.current = route;
+        match &self.current {
+            RouteType::HomePage => {
+                self.widget = Box::new(page::HomePage::new(self.render_state.clone()));
+            }
+            RouteType::EventPage { link, .. } => {
+                self.widget = Box::new(page::StreamPage::new_from_link(
+                    link.clone(),
+                    self.render_state.clone(),
+                ));
+            }
+            RouteType::LoginPage => {
+                self.widget = Box::new(page::LoginPage::new());
+            }
+            RouteType::ProfilePage { link } => {
+                self.widget = Box::new(page::ProfilePage::new(
+                    link.id.as_bytes().try_into().unwrap(),
+                ));
+            }
+            RouteType::CategoriesPage => {
+                self.widget = Box::new(page::CategoriesPage::new());
+            }
+            RouteType::CategoryPage { id } => {
+                self.widget = Box::new(page::ListingPage::new(page::Listing::Category(id.clone())));
+            }
+            RouteType::HashtagPage { id } => {
+                self.widget = Box::new(page::ListingPage::new(page::Listing::Hashtag(id.clone())));
+            }
+            RouteType::VideosPage => {
+                self.widget = Box::new(page::ListingPage::new(page::Listing::Videos));
+            }
+            RouteType::ShortsPage => {
+                self.widget = Box::new(page::ListingPage::new(page::Listing::Shorts));
+            }
+            RouteType::SearchPage { query } => {
+                self.widget = Box::new(page::SearchPage::new(query.clone()));
+            }
+            RouteType::SettingsPage { section } => {
+                self.widget = Box::new(page::SettingsPage::new(*section));
+            }
+            RouteType::Action(_) => unreachable!(),
+        }
+    }
+
+    fn go_back(&mut self) {
+        if let Some(prev) = self.history.pop() {
+            self.open_route(prev);
+        }
+    }
+
     fn poll_deep_links(&mut self, ctx: &AppContext<'_>) {
         let mut link = self
             .startup_url
@@ -113,10 +176,12 @@ impl ZapStreamApp {
                     link.clone(),
                     self.render_state.clone(),
                 ));
+                self.push_current();
                 self.current = RouteType::EventPage { link, event: None };
             }
             Some(crate::deep_link::DeepLink::Profile(pk)) => {
                 self.widget = Box::new(page::ProfilePage::new(pk));
+                self.push_current();
                 self.current = RouteType::ProfilePage {
                     link: crate::link::NostrLink::profile(&pk),
                 };
@@ -254,6 +319,14 @@ impl notedeck::App for ZapStreamApp {
 
         self.poll_deep_links(ctx);
 
+        let back_pressed = ui.ctx().input_mut(|i| {
+            i.consume_key(egui::Modifiers::NONE, egui::Key::BrowserBack)
+                || i.consume_key(egui::Modifiers::ALT, egui::Key::ArrowLeft)
+        });
+        if back_pressed {
+            self.go_back();
+        }
+
         let released = crate::sub::take_released();
         if !released.is_empty() {
             let mut api = ctx.remote.scoped_subs(ctx.accounts);
@@ -268,6 +341,9 @@ impl notedeck::App for ZapStreamApp {
                     RouteAction::DemandProfile(p) => {
                         self.profiles.demand(p);
                     }
+                    RouteAction::Back => {
+                        self.go_back();
+                    }
                     RouteAction::SetLocale(code) => {
                         crate::i18n::set_locale(&code);
                         let dir = ctx.path.path(notedeck::DataPathType::Setting);
@@ -278,57 +354,15 @@ impl notedeck::App for ZapStreamApp {
                     }
                     RouteAction::Logout(pk) => {
                         ctx.remove_account(&pk);
-                        self.widget = Box::new(page::HomePage::new(self.render_state.clone()));
-                        self.current = RouteType::HomePage;
+                        self.history.clear();
+                        self.open_route(RouteType::HomePage);
                     }
                 }
             } else {
-                self.current = r;
-                match &self.current {
-                    RouteType::HomePage => {
-                        self.widget = Box::new(page::HomePage::new(self.render_state.clone()));
-                    }
-                    RouteType::EventPage { link, .. } => {
-                        self.widget = Box::new(page::StreamPage::new_from_link(
-                            link.clone(),
-                            self.render_state.clone(),
-                        ));
-                    }
-                    RouteType::LoginPage => {
-                        self.widget = Box::new(page::LoginPage::new());
-                    }
-                    RouteType::ProfilePage { link } => {
-                        self.widget = Box::new(page::ProfilePage::new(
-                            link.id.as_bytes().try_into().unwrap(),
-                        ));
-                    }
-                    RouteType::CategoriesPage => {
-                        self.widget = Box::new(page::CategoriesPage::new());
-                    }
-                    RouteType::CategoryPage { id } => {
-                        self.widget = Box::new(page::ListingPage::new(page::Listing::Category(
-                            id.clone(),
-                        )));
-                    }
-                    RouteType::HashtagPage { id } => {
-                        self.widget = Box::new(page::ListingPage::new(page::Listing::Hashtag(
-                            id.clone(),
-                        )));
-                    }
-                    RouteType::VideosPage => {
-                        self.widget = Box::new(page::ListingPage::new(page::Listing::Videos));
-                    }
-                    RouteType::ShortsPage => {
-                        self.widget = Box::new(page::ListingPage::new(page::Listing::Shorts));
-                    }
-                    RouteType::SearchPage { query } => {
-                        self.widget = Box::new(page::SearchPage::new(query.clone()));
-                    }
-                    RouteType::SettingsPage { section } => {
-                        self.widget = Box::new(page::SettingsPage::new(*section));
-                    }
-                    RouteType::Action(_) => unreachable!(),
+                if r != self.current {
+                    self.push_current();
                 }
+                self.open_route(r);
             }
         }
 
@@ -365,7 +399,7 @@ impl notedeck::App for ZapStreamApp {
                     );
                     {
                         let _t = crate::frame_stats::Section::start("header");
-                        Header::new().render(ui, &mut svc, &tx);
+                        Header::new(!self.history.is_empty()).render(ui, &mut svc, &tx);
                     }
                     crate::widgets::relay_banner(ui, health);
                     {

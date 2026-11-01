@@ -14,7 +14,9 @@ fn is_fallback(pk: &enostr::Pubkey) -> bool {
     pk.bytes() == notedeck::FALLBACK_PUBKEY().bytes()
 }
 
-pub struct Header;
+pub struct Header {
+    can_go_back: bool,
+}
 
 impl Header {
     fn language_picker(ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
@@ -46,8 +48,8 @@ impl Header {
 }
 
 impl Header {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(can_go_back: bool) -> Self {
+        Self { can_go_back }
     }
 
     pub fn render(
@@ -63,6 +65,19 @@ impl Header {
                 let size = vec2(ui.available_width(), HEADER_HEIGHT);
                 ui.allocate_ui_with_layout(size, Layout::left_to_right(Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 10.;
+                    if self.can_go_back {
+                        let back = ui
+                            .add(
+                                egui::Label::new(
+                                    theme::display_bold_text("\u{2190}", 20.).color(theme::TEXT),
+                                )
+                                .sense(Sense::click()),
+                            )
+                            .on_hover_and_drag_cursor(CursorIcon::PointingHand);
+                        if back.clicked() {
+                            services.action(crate::route::RouteAction::Back);
+                        }
+                    }
                     let logo = Image::from_bytes(
                         "header_logo.svg",
                         include_bytes!("../resources/logo_amber.svg"),
