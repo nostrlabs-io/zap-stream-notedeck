@@ -136,7 +136,7 @@ impl StreamPage {
                             .inner_margin(egui::Margin::symmetric(margin as i8, 8))
                             .show(ui, |ui| {
                                 ui.set_width(w - margin * 2.0);
-                                StreamTitle::new(event).render(ui, services);
+                                StreamTitle::new(event).render_compact(ui, services);
                             });
                     });
 
