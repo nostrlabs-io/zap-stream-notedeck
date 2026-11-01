@@ -60,24 +60,9 @@ pub fn render(ui: &mut Ui, services: &mut RouteServices<'_, '_>, data: &ChatData
                 link: NostrLink::profile(msg.author),
             });
         }
-        if services.can_sign() && Some(*msg.author) != services.me() {
-            let author = *msg.author;
-            let muted = services.is_muted(&author);
-            avatar.context_menu(|ui| {
-                let label = if muted {
-                    crate::i18n::t("button.unmute")
-                } else {
-                    crate::i18n::t("button.mute")
-                };
-                if ui.button(label).clicked() {
-                    services.set_muted(&author, !muted);
-                    ui.close();
-                }
-            });
-        }
         ui.vertical(|ui| {
             ui.horizontal_wrapped(|ui| {
-                let name = profile
+        let name = profile
                     .and_then(|p| p.name().or(p.display_name()))
                     .unwrap_or(crate::i18n::t("common.anon"))
                     .to_string();
