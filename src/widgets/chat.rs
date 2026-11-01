@@ -184,7 +184,7 @@ impl Chat {
                     state.picker = !state.picker;
                     state.timeouts = false;
                 }
-                if is_moderator && ui.button("⏱ Timeout").clicked() {
+                if is_moderator && ui.button("Timeout").clicked() {
                     state.timeouts = !state.timeouts;
                     state.picker = false;
                 }

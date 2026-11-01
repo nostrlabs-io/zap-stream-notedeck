@@ -66,14 +66,14 @@ impl Header {
                 ui.allocate_ui_with_layout(size, Layout::left_to_right(Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 10.;
                     if self.can_go_back {
-                        let back = ui
-                            .add(
-                                egui::Label::new(
-                                    theme::display_bold_text("\u{2190}", 20.).color(theme::TEXT),
-                                )
-                                .sense(Sense::click()),
-                            )
-                            .on_hover_and_drag_cursor(CursorIcon::PointingHand);
+                        let back = Image::from_bytes(
+                            "arrow_left.svg",
+                            include_bytes!("../resources/icons/arrow-left.svg"),
+                        )
+                        .max_height(22.)
+                        .sense(Sense::click())
+                        .ui(ui)
+                        .on_hover_and_drag_cursor(CursorIcon::PointingHand);
                         if back.clicked() {
                             services.action(crate::route::RouteAction::Back);
                         }
