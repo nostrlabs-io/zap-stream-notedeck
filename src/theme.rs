@@ -27,7 +27,7 @@ pub const NEUTRAL_900: Color32 = SURFACE_LOW;
 
 pub const SIDEBAR_WIDTH: f32 = 208.0;
 pub const HEADER_HEIGHT: f32 = 56.0;
-pub const WIDE_BREAKPOINT: f32 = 720.0;
+pub const WIDE_BREAKPOINT: f32 = 800.0;
 
 pub fn display_family() -> FontFamily {
     FontFamily::Name("display".into())

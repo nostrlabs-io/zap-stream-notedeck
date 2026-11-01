@@ -195,7 +195,21 @@ impl notedeck::App for ZapStreamApp {
                     self.widget = Box::new(page::CategoriesPage::new());
                     self.current = RouteType::CategoriesPage;
                 }
+                "videos" => {
+                    self.widget = Box::new(page::ListingPage::new(page::Listing::Videos));
+                    self.current = RouteType::VideosPage;
+                }
+                "shorts" => {
+                    self.widget = Box::new(page::ListingPage::new(page::Listing::Shorts));
+                    self.current = RouteType::ShortsPage;
+                }
                 other => {
+                    if let Some(id) = other.strip_prefix("hashtag:") {
+                        self.widget = Box::new(page::ListingPage::new(page::Listing::Hashtag(
+                            id.to_string(),
+                        )));
+                        self.current = RouteType::HashtagPage { id: id.to_string() };
+                    }
                     if let Some(sec) = other.strip_prefix("settings") {
                         let section = match sec {
                             ":profile" => SettingsSection::Profile,
