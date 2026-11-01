@@ -325,23 +325,25 @@ impl<'a> ZapButton<'a> {
             210_000, 500_000, 1_000_000,
         ];
         let selected_amount = services.get("zap_amount").unwrap_or(0);
-        ui.horizontal_wrapped(|ui| {
-            ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
-            for x in SATS_AMOUNTS {
-                let clicked = Button::new()
-                    .with_color(if selected_amount == *x {
-                        PRIMARY
-                    } else {
-                        NEUTRAL_800
-                    })
-                    .padding(egui::Margin::symmetric(12, 8))
-                    .text(ui, &format_sats(*x as f32))
-                    .clicked();
-                if clicked {
-                    services.set("zap_amount", *x);
+        for row in SATS_AMOUNTS.chunks(5) {
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
+                for x in row {
+                    let clicked = Button::new()
+                        .with_color(if selected_amount == *x {
+                            PRIMARY
+                        } else {
+                            NEUTRAL_800
+                        })
+                        .padding(egui::Margin::symmetric(10, 8))
+                        .text(ui, &format_sats(*x as f32))
+                        .clicked();
+                    if clicked {
+                        services.set("zap_amount", *x);
+                    }
                 }
-            }
-        });
+            });
+        }
 
         // comment section
         let mut zap_comment = services.get("zap_comment").unwrap_or(String::new());
