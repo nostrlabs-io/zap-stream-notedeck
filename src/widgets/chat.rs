@@ -10,7 +10,7 @@ use crate::widgets::{
     chat_badge, chat_message, chat_raid, chat_reactions, chat_timeout, emoji_picker, mute_button,
     sub_or_poll, NostrWidget,
 };
-use crate::zap::{format_sats, top_senders, Zap};
+use crate::zap::{format_sats, SenderTotals, Zap, SENDER_TOTALS_BATCH};
 use egui::{Id, Modal, Response, ScrollArea, Sense, Ui};
 use nostrdb::{Filter, NoteKey};
 use std::collections::{HashMap, HashSet};
@@ -42,6 +42,8 @@ pub struct Chat {
     modal: Option<ModalState>,
     top: Vec<([u8; 32], u64)>,
     top_len: usize,
+    top_pending: bool,
+    totals: SenderTotals<NoteKey>,
 }
 
 impl Chat {
@@ -65,6 +67,8 @@ impl Chat {
             modal: None,
             top: Vec::new(),
             top_len: usize::MAX,
+            top_pending: false,
+            totals: SenderTotals::new(),
         }
     }
 
@@ -246,19 +250,25 @@ impl Chat {
 
 impl Chat {
     fn top_zappers_row(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
-        if self.top_len != self.events.len() {
+        if self.top_len != self.events.len() || self.top_pending {
             self.top_len = self.events.len();
-            let mut zaps = Vec::new();
-            for r in &self.events {
-                if let Ok(note) = services.ctx.ndb.get_note_by_key(services.tx, r.key) {
-                    if note.kind() == 9735 {
-                        if let Ok(z) = Zap::from_receipt(note) {
-                            zaps.push(z);
-                        }
-                    }
-                }
+            let ndb = &services.ctx.ndb;
+            let tx = services.tx;
+            self.top_pending = self.totals.absorb(
+                self.events.iter().map(|r| &r.key),
+                SENDER_TOTALS_BATCH,
+                |key| {
+                    let note = ndb.get_note_by_key(tx, key).ok()?;
+                    let z = Zap::from_receipt(note).ok()?;
+                    Some((z.sender, z.amount))
+                },
+            );
+            if self.totals.take_dirty() {
+                self.top = self.totals.top(10);
             }
-            self.top = top_senders(&zaps, 10);
+            if self.top_pending {
+                ui.ctx().request_repaint();
+            }
         }
         if self.top.is_empty() {
             return;
