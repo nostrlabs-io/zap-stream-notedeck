@@ -43,6 +43,10 @@ pub trait NostrWidget {
 
     /// Update widget on draw
     fn update(&mut self, services: &mut RouteServices<'_, '_>) -> anyhow::Result<()>;
+
+    fn exit_fullscreen(&mut self) -> bool {
+        false
+    }
 }
 
 /// On widget update call this to update NDB data

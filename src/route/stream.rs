@@ -298,6 +298,16 @@ impl StreamPage {
 }
 
 impl NostrWidget for StreamPage {
+    fn exit_fullscreen(&mut self) -> bool {
+        match self.player.as_mut() {
+            Some(p) if p.is_fullscreen() => {
+                p.exit_fullscreen();
+                true
+            }
+            _ => false,
+        }
+    }
+
     fn render(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) -> Response {
         let events: Vec<Note> = self
             .events
