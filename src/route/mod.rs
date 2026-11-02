@@ -157,7 +157,7 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
             .map(|p| p.record().profile())
             .ok()
             .flatten();
-        if p.is_none() {
+        if p.is_none() && crate::profiles::first_demand(pk) {
             self.action(RouteAction::DemandProfile(*pk));
         }
         p
