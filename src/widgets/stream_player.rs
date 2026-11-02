@@ -368,6 +368,16 @@ impl Widget for &mut StreamPlayer {
 
 pub fn paint_state_card(ui: &mut Ui, rect: Rect, title: &str, detail: &str) {
     ui.painter().rect_filled(rect, 16.0, theme::NEUTRAL_800);
+    paint_state_text(ui, rect, title, detail);
+}
+
+pub fn paint_state_overlay(ui: &mut Ui, rect: Rect, title: &str, detail: &str) {
+    ui.painter()
+        .rect_filled(rect, 16.0, Color32::from_rgba_unmultiplied(13, 12, 15, 150));
+    paint_state_text(ui, rect, title, detail);
+}
+
+fn paint_state_text(ui: &mut Ui, rect: Rect, title: &str, detail: &str) {
     let center = rect.center();
     ui.painter().text(
         center - vec2(0.0, 12.0),

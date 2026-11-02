@@ -25,7 +25,7 @@ pub fn resolve_url(base: &str, reference: &str) -> String {
     }
 }
 
-fn attribute<'a>(line: &'a str, name: &str) -> Option<&'a str> {
+pub fn attribute<'a>(line: &'a str, name: &str) -> Option<&'a str> {
     let list = line.split_once(':')?.1;
     let mut rest = list;
     while !rest.is_empty() {

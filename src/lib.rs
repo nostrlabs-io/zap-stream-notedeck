@@ -15,6 +15,7 @@ mod hls;
 mod i18n;
 mod relay_health;
 mod player_health;
+mod poster;
 pub mod relays;
 mod link;
 mod note_ref;

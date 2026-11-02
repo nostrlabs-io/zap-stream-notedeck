@@ -1,8 +1,7 @@
 use crate::link::NostrLink;
-use crate::route::{image_from_cache, RouteServices, RouteType};
+use crate::route::{RouteServices, RouteType};
 use crate::stream_info::StreamInfo;
 use crate::theme::{self, ON_PRIMARY, PRIMARY, TEXT, TEXT_SOFT};
-use crate::widgets::stream_tile::paint_cover;
 use egui::epaint::{Color32, CornerRadius, Mesh, Shape};
 use egui::{pos2, vec2, CursorIcon, Rect, Sense, Ui};
 use nostrdb::Note;
@@ -28,17 +27,9 @@ impl<'a> Hero<'a> {
         let rect = response.rect;
         let radius = 16u8;
 
-        let cover = self.event.image().and_then(|p| {
-            image_from_cache(
-                services.ctx.img_cache,
-                services.ctx.media_jobs.sender(),
-                ui,
-                p,
-                Some(vec2(w, height)),
-            )
-        });
-        let has_cover = cover.is_some();
-        paint_cover(ui, &painter, rect, radius, cover);
+        let poster = crate::poster::paint::poster_for(ui, services, self.event);
+        let has_cover = poster.as_ref().is_some_and(|p| p.texture.is_some());
+        crate::poster::paint::paint_poster(&painter, rect, radius, poster.as_ref(), "");
         if !has_cover {
             if let Some(p) = preview {
                 p.show_in(ui, rect);
