@@ -40,24 +40,32 @@ impl Default for Broadcast {
 }
 
 fn run<T: Send + 'static>(
-    req: anyhow::Result<ehttp::Request>,
+    signer: crate::signer::Signer,
+    req: ehttp::Request,
     ctx: egui::Context,
     parse: fn(u16, &[u8]) -> anyhow::Result<T>,
 ) -> mpsc::Receiver<Result<T, String>> {
     let (tx, rx) = mpsc::channel();
-    match req {
-        Ok(req) => ehttp::fetch(req, move |res| {
-            let out = match res {
-                Ok(r) => parse(r.status, &r.bytes).map_err(|e| e.to_string()),
-                Err(e) => Err(e),
-            };
-            let _ = tx.send(out);
-            ctx.request_repaint();
-        }),
-        Err(e) => {
-            let _ = tx.send(Err(e.to_string()));
+    std::thread::spawn(move || {
+        let signed = zap_api::auth_for(&req)
+            .map_err(|e| e.to_string())
+            .and_then(|b| signer.sign_blocking(b).map_err(|e| e.to_string()))
+            .map(|ev| zap_api::attach_auth(req, &ev));
+        match signed {
+            Ok(req) => ehttp::fetch(req, move |res| {
+                let out = match res {
+                    Ok(r) => parse(r.status, &r.bytes).map_err(|e| e.to_string()),
+                    Err(e) => Err(e),
+                };
+                let _ = tx.send(out);
+                ctx.request_repaint();
+            }),
+            Err(e) => {
+                let _ = tx.send(Err(e));
+                ctx.request_repaint();
+            }
         }
-    }
+    });
     rx
 }
 
@@ -72,11 +80,12 @@ fn status_only(status: u16, body: &[u8]) -> anyhow::Result<()> {
 
 impl Broadcast {
     fn start_load(&mut self, services: &RouteServices<'_, '_>) {
-        let Some(keys) = services.current_account_keys() else {
+        let Some(signer) = services.signer() else {
             return;
         };
         self.load = Load::Loading(run(
-            zap_api::account_request(&keys),
+            signer,
+            zap_api::account_request(),
             services.egui.clone(),
             zap_api::parse_account,
         ));
@@ -117,22 +126,23 @@ impl Broadcast {
     }
 
     fn save(&mut self, services: &RouteServices<'_, '_>) {
-        let Some(keys) = services.current_account_keys() else {
+        let Some(signer) = services.signer() else {
             return;
         };
         self.form.tags = zap_api::parse_tags(&self.tags);
         self.form.content_warning = if self.nsfw { "nsfw".to_string() } else { String::new() };
-        let req = zap_api::update_request(&keys, None, &self.form);
+        let req = zap_api::update_request(None, &self.form);
         self.status = None;
-        self.saving = Some(run(req, services.egui.clone(), status_only));
+        self.saving = Some(run(signer, req, services.egui.clone(), status_only));
     }
 
     fn accept_tos(&mut self, services: &RouteServices<'_, '_>) {
-        let Some(keys) = services.current_account_keys() else {
+        let Some(signer) = services.signer() else {
             return;
         };
         self.saving = Some(run(
-            zap_api::accept_tos_request(&keys),
+            signer,
+            zap_api::accept_tos_request(),
             services.egui.clone(),
             status_only,
         ));

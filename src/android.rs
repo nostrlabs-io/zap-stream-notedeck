@@ -11,6 +11,7 @@ pub fn start_android(app: AndroidApp) {
     );
     log::info!("start_android");
     crate::android_window::set_activity(app.activity_as_ptr());
+    crate::amber_android::set_app(&app);
 
     std::panic::set_hook(Box::new(|info| log::error!("panic: {info}")));
 

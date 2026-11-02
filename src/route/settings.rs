@@ -178,7 +178,7 @@ impl SettingsPage {
 
     #[cfg(not(target_os = "android"))]
     fn start_upload(&mut self, services: &RouteServices<'_, '_>) {
-        let Some(keys) = services.current_account_keys() else {
+        let Some(signer) = services.signer() else {
             return;
         };
         let (tx, rx) = mpsc::channel();
@@ -197,7 +197,7 @@ impl SettingsPage {
             };
             let name = file.file_name();
             let data = file.read().await;
-            match crate::blossom::upload_request(&keys, &name, data) {
+            match crate::blossom::upload_request(&signer, &name, data) {
                 Ok(req) => {
                     let tx2 = tx.clone();
                     let ctx2 = ctx.clone();
@@ -273,17 +273,10 @@ impl SettingsPage {
     }
 
     fn save_profile(&mut self, services: &mut RouteServices<'_, '_>, _me: [u8; 32]) {
-        let Some(keys) = services.current_account_keys() else {
-            return;
-        };
         let content = self.form.to_content(&self.existing);
-        match EventBuilder::new(Kind::Metadata, content.clone()).sign_with_keys(&keys) {
-            Ok(ev) => {
-                services.broadcast_event(ev);
-                self.existing = content;
-                self.status = Some(Ok(crate::i18n::t("settings.profile_saved").to_string()));
-            }
-            Err(e) => self.status = Some(Err(e.to_string())),
+        if services.sign_and_broadcast(EventBuilder::new(Kind::Metadata, content.clone())) {
+            self.existing = content;
+            self.status = Some(Ok(crate::i18n::t("settings.profile_saved").to_string()));
         }
     }
 
@@ -383,16 +376,9 @@ impl SettingsPage {
     }
 
     fn publish_relays(&mut self, services: &mut RouteServices<'_, '_>, tags: Vec<Vec<String>>) {
-        let Some(keys) = services.current_account_keys() else {
-            return;
-        };
         let tags = tags.into_iter().filter_map(|t| Tag::parse(t).ok());
-        match EventBuilder::new(Kind::RelayList, "").tags(tags).sign_with_keys(&keys) {
-            Ok(ev) => {
-                services.broadcast_event(ev);
-                self.status = None;
-            }
-            Err(e) => self.status = Some(Err(e.to_string())),
+        if services.sign_and_broadcast(EventBuilder::new(Kind::RelayList, "").tags(tags)) {
+            self.status = None;
         }
     }
 

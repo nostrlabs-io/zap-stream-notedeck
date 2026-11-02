@@ -1,4 +1,6 @@
 #[cfg(target_os = "android")]
+mod amber_android;
+#[cfg(target_os = "android")]
 mod android;
 mod android_window;
 pub mod app;
@@ -22,6 +24,7 @@ mod profile_edit;
 mod relay_list;
 mod profiles;
 mod route;
+mod signer;
 mod stream_info;
 mod sub;
 pub mod theme;

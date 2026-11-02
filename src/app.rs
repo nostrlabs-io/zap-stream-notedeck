@@ -354,6 +354,8 @@ impl notedeck::App for ZapStreamApp {
                         ctx.select_account(&pk);
                     }
                     RouteAction::Logout(pk) => {
+                        let dir = ctx.path.path(notedeck::DataPathType::Setting);
+                        crate::signer::forget_amber(&dir, &pk.hex());
                         ctx.remove_account(&pk);
                         self.history.clear();
                         self.open_route(RouteType::HomePage);
@@ -398,6 +400,8 @@ impl notedeck::App for ZapStreamApp {
                         self.routes_tx.clone(),
                         &mut self.fetch,
                     );
+                    crate::signer::set_repaint(&svc.egui);
+                    svc.flush_signed();
                     {
                         let _t = crate::frame_stats::Section::start("header");
                         Header::new(!self.history.is_empty()).render(ui, &mut svc, &tx);

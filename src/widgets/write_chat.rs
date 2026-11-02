@@ -82,9 +82,8 @@ impl WriteChat {
                     {
                         let text = self.msg.trim().to_string();
                         let tags = message_emoji_tags(&text, &self.picked);
-                        if let Some(ev) = services.write_live_chat_msg(&self.link, &text, tags) {
-                            info!("Sending: {:?}", ev);
-                            services.broadcast_event(ev);
+                        if services.write_live_chat_msg(&self.link, &text, tags) {
+                            info!("Sending: {}", text);
                         }
                         self.msg.clear();
                     }

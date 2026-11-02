@@ -93,13 +93,12 @@ pub fn parse_account(status: u16, body: &[u8]) -> Result<Account> {
     })
 }
 
-pub fn auth_event(
-    keys: &Keys,
+pub fn auth_builder(
     url: &str,
     method: &str,
     body: Option<&[u8]>,
     now: Timestamp,
-) -> Result<Event> {
+) -> Result<EventBuilder> {
     let mut tags = vec![Tag::parse(["u", url])?, Tag::parse(["method", method])?];
     if let Some(b) = body {
         let hash = hex::encode(sha256::Hash::hash(b).to_byte_array());
@@ -107,28 +106,50 @@ pub fn auth_event(
     }
     Ok(EventBuilder::new(Kind::HttpAuth, "")
         .tags(tags)
-        .custom_created_at(now)
-        .sign_with_keys(keys)?)
+        .custom_created_at(now))
 }
 
-fn signed(keys: &Keys, mut req: ehttp::Request, method: &str) -> Result<ehttp::Request> {
-    let ev = auth_event(keys, &req.url, method, Some(&req.body).filter(|b| !b.is_empty()).map(|b| b.as_slice()), Timestamp::now())?;
+pub fn auth_event(
+    keys: &Keys,
+    url: &str,
+    method: &str,
+    body: Option<&[u8]>,
+    now: Timestamp,
+) -> Result<Event> {
+    Ok(auth_builder(url, method, body, now)?.sign_with_keys(keys)?)
+}
+
+pub fn auth_for(req: &ehttp::Request) -> Result<EventBuilder> {
+    auth_builder(
+        &req.url,
+        &req.method,
+        Some(&req.body).filter(|b| !b.is_empty()).map(|b| b.as_slice()),
+        Timestamp::now(),
+    )
+}
+
+pub fn attach_auth(mut req: ehttp::Request, ev: &Event) -> ehttp::Request {
     use nostr::base64::{engine::general_purpose::STANDARD, Engine};
     req.headers.insert("Authorization", format!("Nostr {}", STANDARD.encode(ev.as_json())));
     req.headers.insert("Accept", "application/json");
-    Ok(req)
+    req
 }
 
-pub fn account_request(keys: &Keys) -> Result<ehttp::Request> {
-    signed(keys, ehttp::Request::get(format!("{}/account", API_URL)), "GET")
+pub fn signed(keys: &Keys, req: ehttp::Request) -> Result<ehttp::Request> {
+    let ev = auth_for(&req)?.sign_with_keys(keys)?;
+    Ok(attach_auth(req, &ev))
 }
 
-pub fn accept_tos_request(keys: &Keys) -> Result<ehttp::Request> {
+pub fn account_request() -> ehttp::Request {
+    ehttp::Request::get(format!("{}/account", API_URL))
+}
+
+pub fn accept_tos_request() -> ehttp::Request {
     let body = json!({ "accept_tos": true }).to_string().into_bytes();
     let mut req = ehttp::Request::post(format!("{}/account", API_URL), body);
     req.method = "PATCH".to_string();
     req.headers.insert("Content-Type", "application/json");
-    signed(keys, req, "PATCH")
+    req
 }
 
 pub fn update_body(id: Option<&str>, d: &StreamDetails) -> Vec<u8> {
@@ -144,11 +165,11 @@ pub fn update_body(id: Option<&str>, d: &StreamDetails) -> Vec<u8> {
     .into_bytes()
 }
 
-pub fn update_request(keys: &Keys, id: Option<&str>, d: &StreamDetails) -> Result<ehttp::Request> {
+pub fn update_request(id: Option<&str>, d: &StreamDetails) -> ehttp::Request {
     let mut req = ehttp::Request::post(format!("{}/event", API_URL), update_body(id, d));
     req.method = "PATCH".to_string();
     req.headers.insert("Content-Type", "application/json");
-    signed(keys, req, "PATCH")
+    req
 }
 
 pub fn check_status(status: u16, body: &[u8]) -> Result<()> {
@@ -209,7 +230,7 @@ mod tests {
     #[test]
     fn get_request_has_signed_header_and_no_payload() {
         let keys = Keys::generate();
-        let req = account_request(&keys).unwrap();
+        let req = signed(&keys, account_request()).unwrap();
         assert!(req.headers.get("Authorization").unwrap().starts_with("Nostr "));
         assert_eq!(req.method, "GET");
     }

@@ -1,4 +1,5 @@
 use crate::link::NostrLink;
+use crate::signer::Signer;
 use anyhow::{anyhow, bail};
 use egui::load::SizedTexture;
 use egui::{Context, Id, Image, Ui, Vec2};
@@ -201,16 +202,53 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
         }
     }
 
+    pub fn signer(&self) -> Option<Signer> {
+        let account = self.ctx.accounts.get_selected_account();
+        if let Some(secret) = account.key.secret_key.as_ref() {
+            return Some(Signer::Local(Keys::new(secret.clone())));
+        }
+        let hex = account.key.pubkey.hex();
+        let dir = self.ctx.path.path(notedeck::DataPathType::Setting);
+        let package = crate::signer::amber_package(&dir, &hex)?;
+        let pubkey = nostr::PublicKey::from_slice(account.key.pubkey.bytes()).ok()?;
+        Some(Signer::Amber { pubkey, package })
+    }
+
+    pub fn sign_and_broadcast(&mut self, builder: EventBuilder) -> bool {
+        let Some(signer) = self.signer() else {
+            return false;
+        };
+        let handle = signer.sign(builder);
+        match handle.poll() {
+            Some(Ok(ev)) => self.broadcast_event(ev),
+            Some(Err(e)) => warn!("signing failed: {e}"),
+            None => crate::signer::submit(handle),
+        }
+        true
+    }
+
+    pub fn flush_signed(&mut self) {
+        for ev in crate::signer::drain_signed() {
+            if ev.kind == Kind::MuteList {
+                *self.mutes.borrow_mut() = None;
+            }
+            self.broadcast_event(ev);
+        }
+        if crate::signer::has_pending() {
+            self.egui
+                .request_repaint_after(std::time::Duration::from_millis(250));
+        }
+    }
+
     pub fn write_live_chat_msg(
-        &self,
+        &mut self,
         link: &NostrLink,
         msg: &str,
         emoji: Vec<Vec<String>>,
-    ) -> Option<Event> {
+    ) -> bool {
         if msg.is_empty() {
-            return None;
+            return false;
         }
-        let key = self.current_account_keys()?;
         let mut builder = EventBuilder::new(Kind::LiveEventMessage, msg)
             .tag(Tag::parse(link.to_tag()).unwrap());
         for t in emoji {
@@ -218,7 +256,7 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
                 builder = builder.tag(tag);
             }
         }
-        builder.sign_with_keys(&key).ok()
+        self.sign_and_broadcast(builder)
     }
 
     pub fn react(
@@ -228,9 +266,6 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
         content: &str,
         emoji_url: Option<&str>,
     ) {
-        let Some(key) = self.current_account_keys() else {
-            return;
-        };
         let mut builder = EventBuilder::new(Kind::Reaction, content)
             .tag(Tag::parse(["e".to_string(), hex::encode(target)]).unwrap())
             .tag(Tag::parse(["p".to_string(), hex::encode(author)]).unwrap());
@@ -239,40 +274,23 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
                 Tag::parse(["emoji".to_string(), name.to_string(), url.to_string()]).unwrap(),
             );
         }
-        if let Ok(ev) = builder.sign_with_keys(&key) {
-            self.broadcast_event(ev);
-        }
+        self.sign_and_broadcast(builder);
     }
 
     pub fn timeout_user(&mut self, user: &[u8; 32], secs: u64) {
-        let Some(key) = self.current_account_keys() else {
-            return;
-        };
         let expiry = nostr::Timestamp::now().as_u64() + secs;
         let builder = EventBuilder::new(Kind::Custom(1314), "")
             .tag(Tag::parse(["p".to_string(), hex::encode(user)]).unwrap())
             .tag(Tag::parse(["expiration".to_string(), expiry.to_string()]).unwrap());
-        if let Ok(ev) = builder.sign_with_keys(&key) {
-            self.broadcast_event(ev);
-        }
+        self.sign_and_broadcast(builder);
     }
 
     pub fn me(&self) -> Option<[u8; 32]> {
-        let account = self.ctx.accounts.get_selected_account();
-        account
-            .key
-            .secret_key
-            .as_ref()
-            .map(|_| *account.key.pubkey.bytes())
+        self.signer().map(|s| s.pubkey().to_bytes())
     }
 
     pub fn can_sign(&self) -> bool {
-        self.ctx
-            .accounts
-            .get_selected_account()
-            .key
-            .secret_key
-            .is_some()
+        self.signer().is_some()
     }
 
     pub fn own_contact_tags(&self) -> Vec<Vec<String>> {
@@ -288,18 +306,10 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
     }
 
     pub fn set_following(&mut self, target: &[u8; 32], follow: bool) {
-        let Some(keys) = self.current_account_keys() else {
-            return;
-        };
         let hex = nostr::prelude::hex::encode(target);
         let tags = crate::contacts::with_follow(self.own_contact_tags(), &hex, follow);
         let tags = tags.into_iter().filter_map(|t| Tag::parse(t).ok());
-        if let Ok(ev) = EventBuilder::new(Kind::ContactList, "")
-            .tags(tags)
-            .sign_with_keys(&keys)
-        {
-            self.broadcast_event(ev);
-        }
+        self.sign_and_broadcast(EventBuilder::new(Kind::ContactList, "").tags(tags));
     }
 
     pub fn own_mute_tags(&self) -> Vec<Vec<String>> {
@@ -327,29 +337,12 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
     }
 
     pub fn set_muted(&mut self, target: &[u8; 32], mute: bool) {
-        let Some(keys) = self.current_account_keys() else {
-            return;
-        };
         let hex = nostr::prelude::hex::encode(target);
         let tags = crate::contacts::with_mute(self.own_mute_tags(), &hex, mute);
         let tags = tags.into_iter().filter_map(|t| Tag::parse(t).ok());
-        if let Ok(ev) = EventBuilder::new(Kind::MuteList, "")
-            .tags(tags)
-            .sign_with_keys(&keys)
-        {
+        if self.sign_and_broadcast(EventBuilder::new(Kind::MuteList, "").tags(tags)) {
             *self.mutes.borrow_mut() = None;
-            self.broadcast_event(ev);
         }
-    }
-
-    pub fn current_account_keys(&self) -> Option<Keys> {
-        self.ctx
-            .accounts
-            .get_selected_account()
-            .key
-            .secret_key
-            .as_ref()
-            .map(|k| Keys::new(k.clone()))
     }
 
     /// Simple wrapper around egui temp data
