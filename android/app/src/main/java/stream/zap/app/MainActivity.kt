@@ -115,6 +115,15 @@ class MainActivity : GameActivity() {
         }
     }
 
+    fun amberRequest(json: String): Boolean = Nip55Signer.request(this, json)
+
+    @Suppress("DEPRECATION")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (!Nip55Signer.onActivityResult(requestCode, resultCode, data)) {
+            super.onActivityResult(requestCode, resultCode, data)
+        }
+    }
+
     fun enterPip() {
         runOnUiThread {
             val params = PictureInPictureParams.Builder()

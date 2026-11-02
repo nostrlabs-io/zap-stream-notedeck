@@ -113,7 +113,7 @@ impl NostrWidget for ProfilePage {
 
                         let hex = nostr::prelude::hex::encode(self.pubkey);
                         let me = *services.ctx.accounts.get_selected_account().key.pubkey.bytes();
-                        let can_sign = services.current_account_keys().is_some();
+                        let can_sign = services.can_sign();
                         let is_me = me == self.pubkey;
                         ui.horizontal(|ui| {
                             if !is_me && can_sign {

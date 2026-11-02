@@ -1,5 +1,6 @@
 use crate::link::NostrLink;
 use crate::route::RouteServices;
+use crate::signer::SignHandle;
 use crate::stream_info::StreamInfo;
 use crate::theme::{
     FONT_SIZE_LG, MARGIN_DEFAULT, NEUTRAL_700, NEUTRAL_800, NEUTRAL_900, PRIMARY, ROUNDING_DEFAULT,
@@ -39,6 +40,12 @@ pub enum ZapState {
     NotStarted,
     Ready {
         service: PayResponse,
+    },
+    Signing {
+        handle: SignHandle,
+        callback: String,
+        amount: u64,
+        nostr: bool,
     },
     FetchingInvoice {
         callback: String,
@@ -119,6 +126,20 @@ impl<'a> ZapButton<'a> {
                     Err(e) => services.set("zap_state", ZapState::Error(e.to_string())),
                     _ => {}
                 },
+                ZapState::Signing { handle, callback, amount, nostr } => {
+                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+                    match handle.poll() {
+                        None => {}
+                        Some(Ok(ev)) => match Self::callback_url(callback, *amount, nostr.then_some(&ev)) {
+                            Ok(url) => services.set(
+                                "zap_state",
+                                ZapState::FetchingInvoice { callback: url.to_string() },
+                            ),
+                            Err(e) => services.set("zap_state", ZapState::Error(e.to_string())),
+                        },
+                        Some(Err(e)) => services.set("zap_state", ZapState::Error(e.to_string())),
+                    }
+                }
                 ZapState::FetchingInvoice { callback } => {
                     match self.zap_get_invoice(callback, services) {
                         Ok(Poll::Ready(s)) => {
@@ -162,6 +183,17 @@ impl<'a> ZapButton<'a> {
             match &zap_state {
                 ZapState::Ready { service } => {
                     self.render_input(ui, services, pubkey, service);
+                }
+                ZapState::Signing { .. } => {
+                    ui.vertical_centered(|ui| {
+                        ui.add_space(24.0);
+                        ui.spinner();
+                        ui.label(
+                            crate::theme::medium(crate::i18n::t("signer.waiting"), 14.0)
+                                .color(crate::theme::MUTED),
+                        );
+                        ui.add_space(24.0);
+                    });
                 }
                 ZapState::Paying { .. } => {
                     ui.ctx()
@@ -386,14 +418,9 @@ impl<'a> ZapButton<'a> {
                 selected_amount * 1_000,
                 &service,
             ) {
-                Ok(callback) => {
+                Ok(next) => {
                     services.set("zap_error", String::new());
-                    services.set(
-                        "zap_state",
-                        ZapState::FetchingInvoice {
-                            callback: callback.to_string(),
-                        },
-                    )
+                    services.set("zap_state", next)
                 }
                 Err(e) => services.set("zap_state", ZapState::Error(e.to_string())),
             }
@@ -411,7 +438,7 @@ impl<'a> ZapButton<'a> {
         zap_comment: &str,
         amount: u64,
         lnurlp: &PayResponse,
-    ) -> anyhow::Result<Url> {
+    ) -> anyhow::Result<ZapState> {
         let relays: Vec<Url> = services
             .ctx
             .accounts
@@ -442,22 +469,25 @@ impl<'a> ZapButton<'a> {
         };
 
         let req_tags: Vec<Tag> = req.into();
-        let keys = if let Some(k) = services.current_account_keys() {
-            k
-        } else {
+        let Some(signer) = services.signer() else {
             bail!("{}", crate::i18n::t("error.not_logged_in"))
         };
 
-        let req_ev = EventBuilder::new(Kind::ZapRequest, zap_comment)
-            .tags(req_tags)
-            .sign_with_keys(&keys)?;
+        let builder = EventBuilder::new(Kind::ZapRequest, zap_comment).tags(req_tags);
+        Ok(ZapState::Signing {
+            handle: signer.sign(builder),
+            callback: lnurlp.callback.clone(),
+            amount,
+            nostr: lnurlp.nostr_pubkey.is_some(),
+        })
+    }
 
-        let mut url = Url::parse(&lnurlp.callback)?;
+    fn callback_url(callback: &str, amount: u64, zap_request: Option<&nostr::Event>) -> anyhow::Result<Url> {
+        let mut url = Url::parse(callback)?;
         url.query_pairs_mut()
             .append_pair("amount", amount.to_string().as_str());
-        if lnurlp.nostr_pubkey.is_some() {
-            url.query_pairs_mut()
-                .append_pair("nostr", req_ev.as_json().as_str());
+        if let Some(ev) = zap_request {
+            url.query_pairs_mut().append_pair("nostr", ev.as_json().as_str());
         }
         Ok(url)
     }

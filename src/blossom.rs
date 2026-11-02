@@ -1,3 +1,4 @@
+use crate::signer::Signer;
 use anyhow::{anyhow, bail, Result};
 use nostr::hashes::{sha256, Hash};
 use nostr::prelude::hex;
@@ -9,7 +10,7 @@ pub fn sha256_hex(data: &[u8]) -> String {
     hex::encode(sha256::Hash::hash(data).to_byte_array())
 }
 
-pub fn auth_event(keys: &Keys, hash_hex: &str, now: Timestamp) -> Result<Event> {
+pub fn auth_builder(hash_hex: &str, now: Timestamp) -> Result<EventBuilder> {
     let expiry = (now + 3600u64).as_u64().to_string();
     let tags = [
         Tag::parse(["t", "upload"])?,
@@ -18,8 +19,11 @@ pub fn auth_event(keys: &Keys, hash_hex: &str, now: Timestamp) -> Result<Event> 
     ];
     Ok(EventBuilder::new(Kind::Custom(24242), "Upload avatar")
         .tags(tags)
-        .custom_created_at(now)
-        .sign_with_keys(keys)?)
+        .custom_created_at(now))
+}
+
+pub fn auth_event(keys: &Keys, hash_hex: &str, now: Timestamp) -> Result<Event> {
+    Ok(auth_builder(hash_hex, now)?.sign_with_keys(keys)?)
 }
 
 pub fn auth_header(event: &Event) -> String {
@@ -53,9 +57,9 @@ pub fn parse_upload_url(status: u16, body: &[u8]) -> Result<String> {
         .ok_or(anyhow!("Upload response had no url"))
 }
 
-pub fn upload_request(keys: &Keys, file_name: &str, data: Vec<u8>) -> Result<ehttp::Request> {
+pub fn upload_request(signer: &Signer, file_name: &str, data: Vec<u8>) -> Result<ehttp::Request> {
     let hash = sha256_hex(&data);
-    let auth = auth_event(keys, &hash, Timestamp::now())?;
+    let auth = signer.sign_blocking(auth_builder(&hash, Timestamp::now())?)?;
     let mut req = ehttp::Request::post(format!("{}/upload", DEFAULT_SERVER), data);
     req.method = "PUT".to_string();
     req.headers.insert("Authorization", auth_header(&auth));

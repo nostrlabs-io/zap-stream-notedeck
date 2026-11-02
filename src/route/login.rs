@@ -23,6 +23,7 @@ pub struct LoginPage {
     keys: Option<nostr::Keys>,
     saved: bool,
     copied: bool,
+    amber: Option<std::sync::mpsc::Receiver<Result<(nostr::PublicKey, String), crate::signer::SignError>>>,
 }
 
 impl LoginPage {
@@ -36,6 +37,7 @@ impl LoginPage {
             keys: None,
             saved: false,
             copied: false,
+            amber: None,
         };
         if let Ok(step) = std::env::var("ZAP_STREAM_LOGIN_STEP") {
             page.keys = Some(nostr::Keys::generate());
@@ -68,6 +70,34 @@ impl LoginPage {
 }
 
 impl LoginPage {
+    fn start_amber(&mut self) {
+        self.error = None;
+        self.amber = Some(crate::signer::begin_amber_login());
+    }
+
+    fn poll_amber(&mut self, services: &mut RouteServices<'_, '_>) {
+        let Some(rx) = &self.amber else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(Ok((pubkey, package))) => {
+                self.amber = None;
+                let dir = services.ctx.path.path(notedeck::DataPathType::Setting);
+                crate::signer::remember_amber(&dir, &pubkey.to_hex(), &package);
+                let kp = enostr::Keypair::only_pubkey(enostr::Pubkey::new(pubkey.to_bytes()));
+                self.add_and_select(services, kp);
+            }
+            Ok(Err(e)) => {
+                self.amber = None;
+                self.error = Some(e.to_string());
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                services.egui.request_repaint_after(std::time::Duration::from_millis(250));
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => self.amber = None,
+        }
+    }
+
     fn try_login(&mut self, services: &mut RouteServices<'_, '_>) {
         match parse_key(&self.key) {
             Some(kp) => self.add_and_select(services, kp),
@@ -185,7 +215,7 @@ impl LoginPage {
         if !self.address.trim().is_empty() {
             meta = meta.lud16(self.address.trim());
         }
-        if let Ok(ev) = nostr::EventBuilder::metadata(&meta).sign_with_keys(&keys) {
+        if let Ok(ev) = crate::signer::Signer::Local(keys).sign_blocking(nostr::EventBuilder::metadata(&meta)) {
             services.broadcast_event(ev);
         }
     }
@@ -206,11 +236,26 @@ impl LoginPage {
         ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
             ui.label(theme::medium(crate::i18n::t("login.already_nostr"), 14.0).color(theme::MUTED));
         });
-        let _ = Self::option_row(
-            ui,
-            crate::i18n::t("login.extension"),
-            crate::i18n::t("login.extension_missing"),
-        );
+        if cfg!(target_os = "android") {
+            let waiting = self.amber.is_some();
+            let subtitle = if waiting {
+                crate::i18n::t("login.amber_waiting")
+            } else {
+                crate::i18n::t("login.amber_hint")
+            };
+            if Self::option_row(ui, crate::i18n::t("login.amber"), subtitle) && !waiting {
+                self.start_amber();
+            }
+            if let Some(e) = &self.error {
+                ui.label(RichText::new(e).color(Color32::from_rgb(255, 99, 99)));
+            }
+        } else {
+            let _ = Self::option_row(
+                ui,
+                crate::i18n::t("login.extension"),
+                crate::i18n::t("login.extension_missing"),
+            );
+        }
         if Self::option_row(ui, crate::i18n::t("login.private_key"), crate::i18n::t("login.private_key_hint")) {
             self.step = Step::PasteKey;
         }
@@ -369,6 +414,7 @@ impl NostrWidget for LoginPage {
                             };
                         }
 
+                        self.poll_amber(services);
                         match self.step {
                             Step::Welcome => self.step_welcome(ui),
                             Step::PasteKey => self.step_paste(ui, services),
