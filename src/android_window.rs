@@ -116,19 +116,47 @@ pub fn set_clipboard_text(text: &str) {
 
 const PENDING_PASTE: &str = "pending_paste";
 
+#[derive(Clone)]
+struct PendingPaste {
+    target: egui::Id,
+    text: String,
+    frames: u8,
+}
+
 pub fn request_paste(ctx: &egui::Context, target: egui::Id) {
     let text = clipboard_text();
     if text.is_empty() {
         return;
     }
     ctx.memory_mut(|m| m.request_focus(target));
-    ctx.data_mut(|d| d.insert_temp(egui::Id::new(PENDING_PASTE), text));
+    ctx.data_mut(|d| {
+        d.insert_temp(
+            egui::Id::new(PENDING_PASTE),
+            PendingPaste {
+                target,
+                text,
+                frames: 0,
+            },
+        )
+    });
     ctx.request_repaint();
 }
 
 pub fn pump(ctx: &egui::Context) {
-    if let Some(text) = ctx.data_mut(|d| d.remove_temp::<String>(egui::Id::new(PENDING_PASTE))) {
-        ctx.input_mut(|i| i.events.push(egui::Event::Paste(text)));
+    let key = egui::Id::new(PENDING_PASTE);
+    if let Some(mut pending) = ctx.data(|d| d.get_temp::<PendingPaste>(key)) {
+        let focused = ctx.memory(|m| m.focused()) == Some(pending.target);
+        if focused {
+            ctx.input_mut(|i| i.events.push(egui::Event::Paste(pending.text)));
+            ctx.data_mut(|d| d.remove::<PendingPaste>(key));
+        } else if pending.frames >= 20 {
+            ctx.data_mut(|d| d.remove::<PendingPaste>(key));
+        } else {
+            pending.frames += 1;
+            ctx.memory_mut(|m| m.request_focus(pending.target));
+            ctx.data_mut(|d| d.insert_temp(key, pending));
+            ctx.request_repaint();
+        }
     }
     if !cfg!(target_os = "android") {
         return;
