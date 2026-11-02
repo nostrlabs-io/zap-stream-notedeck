@@ -98,16 +98,28 @@ pub fn paint_goal(ui: &mut Ui, title: &str, total: u64, target: u64) {
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 4.0;
             ui.horizontal(|ui| {
-                ui.label(theme::medium(title, 14.0).color(theme::TEXT));
-                if remaining_sats > 0 {
+                let to_go = (remaining_sats > 0).then(|| {
+                    theme::medium(
+                        crate::i18n::tf("goal.to_go", &[("n", &format_sats(remaining_sats as f32))]),
+                        12.0,
+                    )
+                    .color(MUTED)
+                });
+                let reserved = to_go.as_ref().map_or(0.0, |t| {
+                    ui.painter()
+                        .layout_no_wrap(t.text().to_string(), egui::FontId::new(12.0, theme::medium_family()), MUTED)
+                        .size()
+                        .x
+                        + 12.0
+                });
+                let title_w = (ui.available_width() - reserved).max(40.0);
+                ui.scope(|ui| {
+                    ui.set_max_width(title_w);
+                    ui.add(egui::Label::new(theme::medium(title, 14.0).color(theme::TEXT)).truncate());
+                });
+                if let Some(t) = to_go {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        ui.label(
-                            theme::medium(
-                                crate::i18n::tf("goal.to_go", &[("n", &format_sats(remaining_sats as f32))]),
-                                12.0,
-                            )
-                            .color(MUTED),
-                        );
+                        ui.label(t);
                     });
                 }
             });
