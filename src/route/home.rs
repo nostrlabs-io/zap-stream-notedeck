@@ -29,11 +29,14 @@ pub struct HomePage {
     totals: crate::zap::SenderTotals<nostrdb::NoteKey>,
     render_state: Option<egui_wgpu::RenderState>,
     pull: PullToRefresh,
+    scroll_at_top: bool,
 }
 
 #[derive(Default)]
 struct PullToRefresh {
     distance: f32,
+    armed: bool,
+    was_dragging: bool,
     refreshed_at: Option<std::time::Instant>,
 }
 
@@ -41,12 +44,21 @@ pub const PULL_THRESHOLD: f32 = 90.0;
 
 impl PullToRefresh {
     fn update(&mut self, at_top: bool, dragging: bool, delta_y: f32) -> bool {
+        let started = dragging && !self.was_dragging;
+        self.was_dragging = dragging;
         if !dragging {
-            let fire = self.distance >= PULL_THRESHOLD;
+            let fire = self.armed && self.distance >= PULL_THRESHOLD;
             self.distance = 0.0;
+            self.armed = false;
             return fire;
         }
-        if at_top && (delta_y > 0.0 || self.distance > 0.0) {
+        if started {
+            self.armed = at_top;
+        }
+        if !at_top {
+            self.armed = false;
+        }
+        if self.armed {
             self.distance = (self.distance + delta_y).max(0.0);
         } else {
             self.distance = 0.0;
@@ -60,6 +72,7 @@ impl HomePage {
         Self {
             preview: None,
             pull: PullToRefresh::default(),
+            scroll_at_top: true,
             board: (0, Vec::new()),
             board_len: usize::MAX,
             window_anchor: now_secs(),
@@ -307,9 +320,7 @@ impl NostrWidget for HomePage {
                 i.pointer.delta().y,
             )
         });
-        let scroll_id = Id::new("home-scroll");
-        let at_top = egui::scroll_area::State::load(ui.ctx(), scroll_id)
-            .map_or(true, |s| s.offset.y <= 0.5);
+        let at_top = self.scroll_at_top;
         if self.pull.update(at_top, dragging, delta_y) {
             self.refresh();
         }
@@ -332,7 +343,7 @@ impl NostrWidget for HomePage {
                 ui.label(theme::medium(crate::i18n::t(key), 13.0).color(theme::MUTED));
             });
         }
-        ScrollArea::vertical()
+        let scroll_out = ScrollArea::vertical()
             .id_salt("home-scroll")
             .auto_shrink([false, false])
             .show(ui, |ui| {
@@ -471,8 +482,9 @@ impl NostrWidget for HomePage {
                         }
                     });
                 ui.response()
-            })
-            .inner
+            });
+        self.scroll_at_top = scroll_out.state.offset.y <= 0.5;
+        scroll_out.inner
     }
 
     fn update(&mut self, services: &mut RouteServices<'_, '_>) -> anyhow::Result<()> {
@@ -523,6 +535,27 @@ mod tests {
         p.update(true, true, 80.0);
         p.update(false, true, 20.0);
         assert!(!p.update(false, false, 0.0));
+    }
+
+    #[test]
+    fn scroll_down_never_shows_indicator() {
+        let mut p = PullToRefresh::default();
+        for _ in 0..20 {
+            assert!(!p.update(false, true, -15.0));
+            assert_eq!(p.distance, 0.0);
+        }
+        assert!(!p.update(false, false, 0.0));
+    }
+
+    #[test]
+    fn scrolling_up_to_top_does_not_trigger() {
+        let mut p = PullToRefresh::default();
+        p.update(false, true, 40.0);
+        p.update(false, true, 40.0);
+        p.update(true, true, 60.0);
+        p.update(true, true, 60.0);
+        assert_eq!(p.distance, 0.0);
+        assert!(!p.update(true, false, 0.0));
     }
 
     #[test]
