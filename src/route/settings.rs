@@ -81,7 +81,8 @@ impl SettingsPage {
                 if mono {
                     edit = edit.font(egui::TextStyle::Monospace);
                 }
-                ui.add(edit);
+                let response = ui.add(edit);
+                crate::android_window::paste_menu(&response);
             });
     }
 

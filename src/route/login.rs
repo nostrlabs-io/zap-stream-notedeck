@@ -132,14 +132,27 @@ impl LoginPage {
             .corner_radius(12)
             .inner_margin(Margin::symmetric(12, 10))
             .show(ui, |ui| {
-                let mut edit = TextEdit::singleline(value)
-                    .frame(Frame::NONE)
-                    .hint_text(hint)
-                    .desired_width(f32::INFINITY);
-                if mono {
-                    edit = edit.font(egui::TextStyle::Monospace);
-                }
-                ui.add(edit);
+                ui.horizontal(|ui| {
+                    let id = ui.id().with("field");
+                    if cfg!(target_os = "android")
+                        && ui
+                            .add(egui::Button::new(theme::medium("Paste", 14.0).color(theme::PRIMARY)))
+                            .clicked()
+                    {
+                        value.clear();
+                        crate::android_window::request_paste(ui.ctx(), id);
+                    }
+                    let mut edit = TextEdit::singleline(value)
+                        .frame(Frame::NONE)
+                        .id(id)
+                        .hint_text(hint)
+                        .desired_width(f32::INFINITY);
+                    if mono {
+                        edit = edit.font(egui::TextStyle::Monospace);
+                    }
+                    let response = ui.add(edit);
+                    crate::android_window::paste_menu(&response);
+                });
             });
     }
 

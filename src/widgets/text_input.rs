@@ -43,10 +43,16 @@ impl Widget for NativeTextInput<'_> {
                 .inner_margin(MARGIN_DEFAULT)
                 .fill(NEUTRAL_900)
                 .corner_radius(ROUNDING_DEFAULT)
-                .show(ui, |ui| ui.add(editor))
+                .show(ui, |ui| {
+                    let r = ui.add(editor);
+                    crate::android_window::paste_menu(&r);
+                    r
+                })
                 .inner
         } else {
-            ui.add(editor)
+            let r = ui.add(editor);
+            crate::android_window::paste_menu(&r);
+            r
         }
     }
 }

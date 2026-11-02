@@ -73,7 +73,7 @@ impl NostrWidget for SearchPage {
                             .corner_radius(12)
                             .inner_margin(Margin::symmetric(12, 8))
                             .show(ui, |ui| {
-                                ui.add(
+                                let r = ui.add(
                                     TextEdit::singleline(&mut self.input)
                                         .frame(egui::Frame::NONE)
                                         .hint_text(
@@ -81,7 +81,9 @@ impl NostrWidget for SearchPage {
                                                 .color(MUTED),
                                         )
                                         .desired_width(f32::INFINITY),
-                                )
+                                );
+                                crate::android_window::paste_menu(&r);
+                                r
                             })
                             .inner;
                         if edit.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {

@@ -115,6 +115,20 @@ class MainActivity : GameActivity() {
         }
     }
 
+    fun getClipboardText(): String {
+        val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+        val clip = cm.primaryClip ?: return ""
+        if (clip.itemCount == 0) return ""
+        return clip.getItemAt(0).coerceToText(this)?.toString() ?: ""
+    }
+
+    fun setClipboardText(text: String) {
+        runOnUiThread {
+            val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("zap.stream", text))
+        }
+    }
+
     fun enterPip() {
         runOnUiThread {
             val params = PictureInPictureParams.Builder()

@@ -230,6 +230,7 @@ fn profiles_sub_identity() -> ScopedSubIdentity {
 impl notedeck::App for ZapStreamApp {
     fn render(&mut self, ctx: &mut AppContext<'_>, ui: &mut Ui) -> AppResponse {
         self.setup_fonts(ui.ctx());
+        crate::android_window::pump(ui.ctx());
         self.load_locale(ctx);
         crate::theme::apply_style(ui.ctx());
         if let Some(s) = self.frame_stats.as_mut() {

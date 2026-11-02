@@ -40,6 +40,126 @@ fn call_activity_str(method: &str, arg: &str) {
     }
 }
 
+#[cfg(target_os = "android")]
+fn read_clipboard() -> String {
+    let ctx = ndk_context::android_context();
+    let result = (|| -> jni::errors::Result<String> {
+        let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast())? };
+        let mut env = vm.attach_current_thread()?;
+        let activity = unsafe { jni::objects::JObject::from_raw(ctx.context().cast()) };
+        let value = env
+            .call_method(&activity, "getClipboardText", "()Ljava/lang/String;", &[])?
+            .l()?;
+        if env.exception_check()? {
+            env.exception_clear()?;
+            return Ok(String::new());
+        }
+        let text: String = env.get_string(&jni::objects::JString::from(value))?.into();
+        Ok(text)
+    })();
+    result.unwrap_or_else(|e| {
+        log::warn!("clipboard read failed: {e}");
+        String::new()
+    })
+}
+
+pub fn clipboard_text() -> String {
+    #[cfg(target_os = "android")]
+    return read_clipboard();
+    #[cfg(not(target_os = "android"))]
+    String::new()
+}
+
+pub fn set_clipboard_text(text: &str) {
+    #[cfg(target_os = "android")]
+    {
+        let ctx = ndk_context::android_context();
+        let result = (|| -> jni::errors::Result<()> {
+            let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast())? };
+            let mut env = vm.attach_current_thread()?;
+            let activity = unsafe { jni::objects::JObject::from_raw(ctx.context().cast()) };
+            let s = env.new_string(text)?;
+            env.call_method(
+                &activity,
+                "setClipboardText",
+                "(Ljava/lang/String;)V",
+                &[jni::objects::JValue::Object(&s)],
+            )?;
+            if env.exception_check()? {
+                env.exception_clear()?;
+            }
+            Ok(())
+        })();
+        if let Err(e) = result {
+            log::warn!("clipboard write failed: {e}");
+        }
+    }
+    #[cfg(not(target_os = "android"))]
+    let _ = text;
+}
+
+const PENDING_PASTE: &str = "pending_paste";
+
+pub fn request_paste(ctx: &egui::Context, target: egui::Id) {
+    let text = clipboard_text();
+    if text.is_empty() {
+        return;
+    }
+    ctx.memory_mut(|m| m.request_focus(target));
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new(PENDING_PASTE), text));
+    ctx.request_repaint();
+}
+
+pub fn pump(ctx: &egui::Context) {
+    if let Some(text) = ctx.data_mut(|d| d.remove_temp::<String>(egui::Id::new(PENDING_PASTE))) {
+        ctx.input_mut(|i| i.events.push(egui::Event::Paste(text)));
+    }
+    if !cfg!(target_os = "android") {
+        return;
+    }
+    let copied: Vec<String> = ctx.output(|o| {
+        o.commands
+            .iter()
+            .filter_map(|c| match c {
+                egui::OutputCommand::CopyText(t) => Some(t.clone()),
+                _ => None,
+            })
+            .collect()
+    });
+    if let Some(last) = copied.last() {
+        set_clipboard_text(last);
+    }
+}
+
+pub fn paste_menu(response: &egui::Response) {
+    let id = response.id;
+    let ctx = response.ctx.clone();
+    response.context_menu(|ui| {
+        if ui.button("Paste").clicked() {
+            request_paste(&ctx, id);
+            ui.close();
+        }
+        if ui.button("Copy").clicked() {
+            ctx.memory_mut(|m| m.request_focus(id));
+            ctx.input_mut(|i| i.events.push(egui::Event::Copy));
+            ui.close();
+        }
+        if ui.button("Select all").clicked() {
+            ctx.memory_mut(|m| m.request_focus(id));
+            ctx.input_mut(|i| {
+                i.events.push(egui::Event::Key {
+                    key: egui::Key::A,
+                    physical_key: None,
+                    pressed: true,
+                    repeat: false,
+                    modifiers: egui::Modifiers::COMMAND,
+                })
+            });
+            ui.close();
+        }
+    });
+}
+
 pub fn open_url(ctx: &egui::Context, url: &str) {
     #[cfg(target_os = "android")]
     {
