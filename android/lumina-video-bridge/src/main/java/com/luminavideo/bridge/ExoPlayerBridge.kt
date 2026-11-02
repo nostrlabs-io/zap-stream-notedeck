@@ -156,12 +156,7 @@ class ExoPlayerBridge internal constructor(private val nativeHandle: Long = 0L) 
 
         handler!!.post {
             try {
-                val exoPlayer = (builder ?: ExoPlayer.Builder(context)
-                    .setLoadControl(
-                        androidx.media3.exoplayer.DefaultLoadControl.Builder()
-                            .setBufferDurationsMs(15_000, 50_000, 2_500, 5_000)
-                            .build()
-                    ))
+                val exoPlayer = (builder ?: ExoPlayer.Builder(context))
                     .setLooper(handlerThread!!.looper)
                     .build()
                     .apply {
@@ -268,16 +263,7 @@ class ExoPlayerBridge internal constructor(private val nativeHandle: Long = 0L) 
                 return@post
             }
             Log.d(TAG, "play($url)")
-            val mediaItem = MediaItem.Builder()
-                .setUri(url)
-                .setLiveConfiguration(
-                    MediaItem.LiveConfiguration.Builder()
-                        .setTargetOffsetMs(6_000)
-                        .setMinPlaybackSpeed(1.0f)
-                        .setMaxPlaybackSpeed(1.0f)
-                        .build()
-                )
-                .build()
+            val mediaItem = MediaItem.fromUri(url)
             p.setMediaItem(mediaItem)
             p.prepare()
             p.play()
