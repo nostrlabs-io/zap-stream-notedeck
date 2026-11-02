@@ -9004,6 +9004,7 @@ dependencies = [
  "regex",
  "rfd",
  "serde",
+ "tempfile",
  "tokio",
  "ureq 2.10.1",
 ]

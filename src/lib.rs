@@ -5,6 +5,7 @@ mod android;
 mod android_window;
 pub mod app;
 mod chat_data;
+mod chat_events;
 mod chat_model;
 mod chat_text;
 mod blossom;

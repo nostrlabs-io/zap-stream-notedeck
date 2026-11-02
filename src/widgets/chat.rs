@@ -311,6 +311,16 @@ impl Chat {
                 close = true;
             }
         });
+        if let Some(action) = std::env::var("ZAP_STREAM_DEBUG_CHAT_ACTION").ok() {
+            std::env::remove_var("ZAP_STREAM_DEBUG_CHAT_ACTION");
+            match action.as_str() {
+                "react" => services.react(&state.id, &state.author, "🔥", None),
+                "timeout" => services.timeout_user(&state.author, 600),
+                "mute" => services.set_muted(&state.author, true),
+                _ => {}
+            }
+            close = true;
+        }
         if let Some(p) = react {
             services.react(&state.id, &state.author, &p.content, p.url.as_deref());
             close = true;

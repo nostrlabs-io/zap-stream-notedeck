@@ -418,3 +418,220 @@ fn collect_set(data: &mut ChatData, tags: &[Vec<String>]) {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::chat_events;
+    use nostr::{EventBuilder, JsonUtil, Keys, Kind, Tag};
+    use nostrdb::Config;
+
+    const NOW: u64 = 2_000_000_000;
+
+    fn tag(parts: &[&str]) -> Tag {
+        Tag::parse(parts.iter().map(|s| s.to_string()).collect::<Vec<_>>()).unwrap()
+    }
+
+    fn ingest(ndb: &Ndb, keys: &Keys, builder: EventBuilder, at: u64) {
+        let ev = builder
+            .custom_created_at(nostr::Timestamp::from(at))
+            .sign_with_keys(keys)
+            .unwrap();
+        ndb.process_event(&ev.as_json()).unwrap();
+    }
+
+    fn collect(ndb: &Ndb, kinds: &[u64]) -> HashSet<NoteRef> {
+        let tx = Transaction::new(ndb).unwrap();
+        let filter = Filter::new().kinds(kinds.iter().copied()).limit(100).build();
+        ndb.query(&tx, &[filter], 100)
+            .unwrap()
+            .into_iter()
+            .map(NoteRef::from_query_result)
+            .collect()
+    }
+
+    fn setup() -> (tempfile::TempDir, Ndb) {
+        let dir = tempfile::tempdir().unwrap();
+        let ndb = Ndb::new(dir.path().to_str().unwrap(), &Config::new()).unwrap();
+        (dir, ndb)
+    }
+
+    fn settle() {
+        std::thread::sleep(std::time::Duration::from_millis(400));
+    }
+
+    #[test]
+    fn reaction_sent_by_picker_shows_on_the_message() {
+        let (_d, ndb) = setup();
+        let host = Keys::generate();
+        let chatter = Keys::generate();
+        let me = Keys::generate();
+        let a = format!("30311:{}:live", host.public_key());
+        ingest(&ndb, &chatter, EventBuilder::new(Kind::Custom(1311), "hi").tag(tag(&["a", &a])), NOW - 100);
+        settle();
+        let main = collect(&ndb, &[1311]);
+        let msg_id = {
+            let tx = Transaction::new(&ndb).unwrap();
+            let k = main.iter().next().unwrap().key;
+            let id = *ndb.get_note_by_key(&tx, k).unwrap().id();
+            id
+        };
+        let author = chatter.public_key().to_bytes();
+        ingest(&ndb, &me, chat_events::reaction(&msg_id, &author, "🔥", None), NOW - 50);
+        ingest(&ndb, &host, chat_events::reaction(&msg_id, &author, "🔥", None), NOW - 40);
+        settle();
+        let aux = collect(&ndb, &[7]);
+        let tx = Transaction::new(&ndb).unwrap();
+        let data = build(
+            &BuildInput { ndb: &ndb, tx: &tx, main: &main, aux: &aux, host: host.public_key().to_bytes(), me: Some(me.public_key().to_bytes()), now: NOW },
+            &mut Parsed::default(),
+        );
+        let counts = data.reactions.get(&msg_id).unwrap();
+        assert_eq!(counts.len(), 1);
+        assert_eq!(counts[0].count, 2);
+    }
+
+    #[test]
+    fn host_timeout_hides_target_and_shows_notice() {
+        let (_d, ndb) = setup();
+        let host = Keys::generate();
+        let bad = Keys::generate();
+        let a = format!("30311:{}:live", host.public_key());
+        ingest(&ndb, &bad, EventBuilder::new(Kind::Custom(1311), "spam").tag(tag(&["a", &a])), NOW - 100);
+        ingest(&ndb, &host, chat_events::timeout(&bad.public_key().to_bytes(), 600, NOW - 60), NOW - 60);
+        settle();
+        let main = collect(&ndb, &[1311, 1314]);
+        let tx = Transaction::new(&ndb).unwrap();
+        let build_at = |now| {
+            build(
+                &BuildInput { ndb: &ndb, tx: &tx, main: &main, aux: &HashSet::new(), host: host.public_key().to_bytes(), me: None, now },
+                &mut Parsed::default(),
+            )
+        };
+        let data = build_at(NOW);
+        assert!(data.muted.contains(&bad.public_key().to_bytes()));
+        assert!(!data.rows.iter().any(|r| matches!(r.kind, RowKind::Message { .. })));
+        let timeout_row = data.rows.iter().find_map(|r| match &r.kind {
+            RowKind::Timeout(t) => Some(t.clone()),
+            _ => None,
+        });
+        assert_eq!(timeout_row.unwrap().duration(), 600);
+        let later = build_at(NOW + 1000);
+        assert!(later.muted.is_empty());
+        assert!(later.rows.iter().any(|r| matches!(r.kind, RowKind::Message { .. })));
+    }
+
+    #[test]
+    fn timeout_from_a_stranger_is_ignored() {
+        let (_d, ndb) = setup();
+        let host = Keys::generate();
+        let stranger = Keys::generate();
+        let victim = Keys::generate();
+        let a = format!("30311:{}:live", host.public_key());
+        ingest(&ndb, &victim, EventBuilder::new(Kind::Custom(1311), "hello").tag(tag(&["a", &a])), NOW - 100);
+        ingest(&ndb, &stranger, chat_events::timeout(&victim.public_key().to_bytes(), 600, NOW - 60), NOW - 60);
+        settle();
+        let main = collect(&ndb, &[1311, 1314]);
+        let tx = Transaction::new(&ndb).unwrap();
+        let data = build(
+            &BuildInput { ndb: &ndb, tx: &tx, main: &main, aux: &HashSet::new(), host: host.public_key().to_bytes(), me: None, now: NOW },
+            &mut Parsed::default(),
+        );
+        assert!(data.muted.is_empty());
+    }
+
+    #[test]
+    fn own_mute_list_hides_user_and_unmute_clears_it() {
+        let (_d, ndb) = setup();
+        let host = Keys::generate();
+        let me = Keys::generate();
+        let noisy = Keys::generate();
+        let noisy_pk = noisy.public_key().to_bytes();
+        let a = format!("30311:{}:live", host.public_key());
+        ingest(&ndb, &noisy, EventBuilder::new(Kind::Custom(1311), "noise").tag(tag(&["a", &a])), NOW - 100);
+        ingest(&ndb, &me, chat_events::mute_list(vec![], &noisy_pk, true), NOW - 50);
+        settle();
+        let main = collect(&ndb, &[1311, 10000]);
+        let (muted_hides, my_tags) = {
+            let tx = Transaction::new(&ndb).unwrap();
+            let data = build(
+            &BuildInput { ndb: &ndb, tx: &tx, main: &main, aux: &HashSet::new(), host: host.public_key().to_bytes(), me: Some(me.public_key().to_bytes()), now: NOW },
+            &mut Parsed::default(),
+        );
+            (
+                data.my_mutes.contains(&noisy_pk)
+                    && !data.rows.iter().any(|r| matches!(r.kind, RowKind::Message { .. })),
+                data.my_mute_tags.clone(),
+            )
+        };
+        assert!(muted_hides);
+
+        ingest(&ndb, &me, chat_events::mute_list(my_tags, &noisy_pk, false), NOW - 10);
+        settle();
+        let main = collect(&ndb, &[1311, 10000]);
+        let tx = Transaction::new(&ndb).unwrap();
+        let data = build(
+            &BuildInput { ndb: &ndb, tx: &tx, main: &main, aux: &HashSet::new(), host: host.public_key().to_bytes(), me: Some(me.public_key().to_bytes()), now: NOW },
+            &mut Parsed::default(),
+        );
+        assert!(data.my_mutes.is_empty());
+        assert!(data.rows.iter().any(|r| matches!(r.kind, RowKind::Message { .. })));
+    }
+
+    #[test]
+    fn raid_event_becomes_a_row_and_wants_both_streams() {
+        let (_d, ndb) = setup();
+        let host = Keys::generate();
+        let other = Keys::generate();
+        let from = format!("30311:{}:live", host.public_key());
+        let to = format!("30311:{}:other", other.public_key());
+        ingest(
+            &ndb,
+            &host,
+            EventBuilder::new(Kind::Custom(1312), "").tag(tag(&["a", &from, "", "from"])).tag(tag(&["a", &to, "", "to"])),
+            NOW - 5,
+        );
+        settle();
+        let main = collect(&ndb, &[1312]);
+        let tx = Transaction::new(&ndb).unwrap();
+        let data = build(
+            &BuildInput { ndb: &ndb, tx: &tx, main: &main, aux: &HashSet::new(), host: host.public_key().to_bytes(), me: None, now: NOW },
+            &mut Parsed::default(),
+        );
+        let raid = data.rows.iter().find_map(|r| match &r.kind {
+            RowKind::Raid { raid, .. } => Some(raid.clone()),
+            _ => None,
+        });
+        let raid = raid.unwrap();
+        assert_eq!((raid.from, raid.to), (from, to));
+        assert_eq!(data.wants.iter().filter(|w| matches!(w, Want::Coordinate(..))).count(), 2);
+    }
+
+    #[test]
+    fn badge_award_by_host_attaches_badge_to_user() {
+        let (_d, ndb) = setup();
+        let host = Keys::generate();
+        let fan = Keys::generate();
+        let coord = format!("30009:{}:vip", host.public_key());
+        ingest(&ndb, &host, EventBuilder::new(Kind::Custom(8), "").tag(tag(&["a", &coord])).tag(tag(&["p", &fan.public_key().to_hex()])), NOW - 20);
+        ingest(&ndb, &fan, EventBuilder::new(Kind::Custom(8), "").tag(tag(&["a", &coord])).tag(tag(&["p", &fan.public_key().to_hex()])), NOW - 10);
+        ingest(
+            &ndb,
+            &host,
+            EventBuilder::new(Kind::Custom(30009), "").tag(tag(&["d", "vip"])).tag(tag(&["name", "VIP"])).tag(tag(&["image", "https://x/y.png"])),
+            NOW - 30,
+        );
+        settle();
+        let main = collect(&ndb, &[8]);
+        let aux = collect(&ndb, &[30009]);
+        let tx = Transaction::new(&ndb).unwrap();
+        let data = build(
+            &BuildInput { ndb: &ndb, tx: &tx, main: &main, aux: &aux, host: host.public_key().to_bytes(), me: None, now: NOW },
+            &mut Parsed::default(),
+        );
+        let fan_pk = fan.public_key().to_bytes();
+        assert_eq!(data.badges_of.get(&fan_pk).unwrap(), &vec![coord.clone()]);
+        assert_eq!(data.rows.iter().filter(|r| matches!(r.kind, RowKind::BadgeAward { .. })).count(), 1);
+        assert_eq!(data.badge_defs.get(&coord).unwrap().name.as_deref(), Some("VIP"));
+    }
+}

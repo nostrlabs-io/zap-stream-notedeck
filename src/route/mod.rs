@@ -266,22 +266,12 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
         content: &str,
         emoji_url: Option<&str>,
     ) {
-        let mut builder = EventBuilder::new(Kind::Reaction, content)
-            .tag(Tag::parse(["e".to_string(), hex::encode(target)]).unwrap())
-            .tag(Tag::parse(["p".to_string(), hex::encode(author)]).unwrap());
-        if let (Some(url), Some(name)) = (emoji_url, content.strip_prefix(':').and_then(|c| c.strip_suffix(':'))) {
-            builder = builder.tag(
-                Tag::parse(["emoji".to_string(), name.to_string(), url.to_string()]).unwrap(),
-            );
-        }
+        let builder = crate::chat_events::reaction(target, author, content, emoji_url);
         self.sign_and_broadcast(builder);
     }
 
     pub fn timeout_user(&mut self, user: &[u8; 32], secs: u64) {
-        let expiry = nostr::Timestamp::now().as_u64() + secs;
-        let builder = EventBuilder::new(Kind::Custom(1314), "")
-            .tag(Tag::parse(["p".to_string(), hex::encode(user)]).unwrap())
-            .tag(Tag::parse(["expiration".to_string(), expiry.to_string()]).unwrap());
+        let builder = crate::chat_events::timeout(user, secs, nostr::Timestamp::now().as_u64());
         self.sign_and_broadcast(builder);
     }
 
@@ -337,10 +327,8 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
     }
 
     pub fn set_muted(&mut self, target: &[u8; 32], mute: bool) {
-        let hex = nostr::prelude::hex::encode(target);
-        let tags = crate::contacts::with_mute(self.own_mute_tags(), &hex, mute);
-        let tags = tags.into_iter().filter_map(|t| Tag::parse(t).ok());
-        if self.sign_and_broadcast(EventBuilder::new(Kind::MuteList, "").tags(tags)) {
+        let builder = crate::chat_events::mute_list(self.own_mute_tags(), target, mute);
+        if self.sign_and_broadcast(builder) {
             *self.mutes.borrow_mut() = None;
         }
     }

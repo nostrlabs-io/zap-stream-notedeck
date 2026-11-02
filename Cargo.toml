@@ -65,3 +65,6 @@ android-activity = { git = "https://github.com/damus-io/android-activity", rev =
 lto = "fat"
 codegen-units = 1
 panic = "abort"
+
+[dev-dependencies]
+tempfile = "3"
