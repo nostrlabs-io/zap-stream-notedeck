@@ -90,6 +90,10 @@ pub fn debug_goal() -> Option<(String, u64, u64)> {
         .map(|_| ("Upgrade the studio camera".to_string(), 420_000_000, 1_000_000_000))
 }
 
+fn title_width(available: f32, reserved: f32) -> f32 {
+    (available - reserved).max(40.0)
+}
+
 pub fn paint_goal(ui: &mut Ui, title: &str, total: u64, target: u64) {
     {
         let fraction = progress(total, target);
@@ -112,7 +116,7 @@ pub fn paint_goal(ui: &mut Ui, title: &str, total: u64, target: u64) {
                         .x
                         + 12.0
                 });
-                let title_w = (ui.available_width() - reserved).max(40.0);
+                let title_w = title_width(ui.available_width(), reserved);
                 ui.scope(|ui| {
                     ui.set_max_width(title_w);
                     ui.add(egui::Label::new(theme::medium(title, 14.0).color(theme::TEXT)).truncate());
@@ -157,7 +161,17 @@ pub fn paint_goal(ui: &mut Ui, title: &str, total: u64, target: u64) {
 
 #[cfg(test)]
 mod tests {
-    use super::progress;
+    use super::{progress, title_width};
+
+    #[test]
+    fn title_leaves_room_for_remaining_label() {
+        assert_eq!(title_width(300.0, 100.0), 200.0);
+    }
+
+    #[test]
+    fn title_never_collapses() {
+        assert_eq!(title_width(50.0, 100.0), 40.0);
+    }
 
     #[test]
     fn zero_target_does_not_divide() {
