@@ -234,7 +234,7 @@ impl notedeck::App for ZapStreamApp {
         self.load_locale(ctx);
         crate::theme::apply_style(ui.ctx());
         if let Some(s) = self.frame_stats.as_mut() {
-            s.tick();
+            s.tick(ui.ctx());
         }
 
         if let Ok(v) = std::env::var("ZAP_STREAM_PAGE") {
