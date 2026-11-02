@@ -85,7 +85,7 @@ def cmd_sf(args):
 
 def cmd_rec(args):
     remote = "/sdcard/present_gaps.mp4"
-    local = args.out or tempfile.mktemp(suffix=".mp4")
+    local = args.keep or tempfile.mktemp(suffix=".mp4")
     print(f"recording {args.secs}s from the screen")
     subprocess.run(
         [ADB_BIN, "-s", args.serial, "shell", "screenrecord", "--time-limit", str(args.secs), "--size", args.size, "--bit-rate", "20000000", remote],
@@ -136,6 +136,24 @@ def analyse_video(path, args):
     histogram(iv, "video content-change intervals", args.source_ms, args.vsync_ms)
 
 
+def locate(path, args):
+    w, h = probe_size(path)
+    gw, gh = 54, int(54 * h / w)
+    raw = subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", path, "-vf", f"scale={gw}:{gh},format=gray", "-fps_mode", "passthrough", "-f", "rawvideo", "-"],
+        capture_output=True,
+    ).stdout
+    frames = np.frombuffer(raw, dtype=np.uint8).reshape(-1, gh, gw).astype(np.int16)
+    act = (np.abs(np.diff(frames, axis=0)) > 12).mean(axis=0)
+    mask = act > 0.5 * act.max()
+    ys, xs = np.where(mask)
+    x0, x1, y0, y1 = xs.min() * w // gw, (xs.max() + 1) * w // gw, ys.min() * h // gh, (ys.max() + 1) * h // gh
+    print(f"recording {w}x{h}, most active region --crop {x0}:{y0}:{x1-x0}:{y1-y0}")
+    out = args.out or "locate.png"
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", path, "-vframes", "1", "-ss", "3", out])
+    print("still saved to", out)
+
+
 def cmd_gfx(args):
     out = adb(["shell", "dumpsys", "gfxinfo", args.package, "framestats"], args.serial)
     rows = []
@@ -156,7 +174,7 @@ def cmd_gfx(args):
 
 def main():
     p = argparse.ArgumentParser(description="Histogram of what reaches the display while a stream plays")
-    p.add_argument("mode", choices=["sf", "rec", "gfx", "video"])
+    p.add_argument("mode", choices=["sf", "rec", "gfx", "video", "locate"])
     p.add_argument("--serial", default=ADB_DEFAULT)
     p.add_argument("--package", default="stream.zap.app")
     p.add_argument("--layer")
@@ -168,6 +186,7 @@ def main():
     p.add_argument("--crop")
     p.add_argument("--threshold", type=float, default=0.15)
     p.add_argument("--out")
+    p.add_argument("--keep")
     p.add_argument("--file")
     a = p.parse_args()
     if a.mode == "sf":
@@ -176,6 +195,8 @@ def main():
         cmd_rec(a)
     elif a.mode == "gfx":
         cmd_gfx(a)
+    elif a.mode == "locate":
+        locate(a.file, a)
     else:
         analyse_video(a.file, a)
 

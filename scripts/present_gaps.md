@@ -20,3 +20,7 @@ python3 scripts/present_gaps.py sf --package io.nostrlabs.zap_stream_flutter --s
 The default picks a SurfaceView layer if one exists, else the shortest matching layer. For our app before the SurfaceView change this shows UI frames (egui redraw cadence), not video frames.
 
 `gfx` mode prints UI frame intervals from `dumpsys gfxinfo <pkg> framestats`. `video --file x.mp4` re-analyses a saved recording.
+
+`locate --file x.mp4` prints the most active region of a recording as a `--crop x:y:w:h` value.
+
+Screenrecord only emits a frame when the screen changes. An app that redraws at 120Hz is captured at about 120 fps, a player that only updates at the video rate (Flutter, SurfaceView) is captured at about the video rate, so its timestamps are the composition times. Both are valid, use `--keep file.mp4` to save the recording. For a SurfaceView app, `sf` mode on the video layer (name from `dumpsys SurfaceFlinger --list | grep SurfaceView`, pass with `--layer`) is the more exact measure.
