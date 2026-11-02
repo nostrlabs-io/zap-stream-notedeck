@@ -37,6 +37,10 @@ pub trait StreamInfo {
 
     fn image(&self) -> Option<&str>;
 
+    fn thumbs(&self) -> Vec<String>;
+
+    fn stream_key(&self) -> String;
+
     fn status(&self) -> StreamStatus;
 
     fn viewers(&self) -> Option<u32>;
@@ -147,6 +151,22 @@ impl StreamInfo for Note<'_> {
         } else {
             None
         }
+    }
+
+    fn thumbs(&self) -> Vec<String> {
+        ["thumb", "thumbnail"]
+            .iter()
+            .filter_map(|k| self.get_tag_value(k).and_then(|s| s.variant().str().map(str::to_string)))
+            .filter(|s| !s.is_empty())
+            .collect()
+    }
+
+    fn stream_key(&self) -> String {
+        let d = self
+            .get_tag_value("d")
+            .and_then(|t| t.variant().str().map(str::to_string))
+            .unwrap_or_default();
+        format!("{}:{}", nostr::prelude::hex::encode(self.pubkey()), d)
     }
 
     fn status(&self) -> StreamStatus {

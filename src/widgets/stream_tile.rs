@@ -86,20 +86,18 @@ impl<'a> StreamEvent<'a> {
             let h = (w / 16.0) * 9.0;
             let (response, painter) = ui.allocate_painter(Vec2::new(w, h), Sense::click());
 
-            let cover = if ui.is_rect_visible(response.rect) {
-                self.event.image().and_then(|p| {
-                    image_from_cache(
-                        services.ctx.img_cache,
-                        services.ctx.media_jobs.sender(),
-                        ui,
-                        p,
-                        Some(Vec2::new(w, h)),
-                    )
-                })
+            let poster = if ui.is_rect_visible(response.rect) {
+                crate::poster::paint::poster_for(ui, services, self.event)
             } else {
                 None
             };
-            paint_cover(ui, &painter, response.rect, 12, cover);
+            crate::poster::paint::paint_poster(
+                &painter,
+                response.rect,
+                12,
+                poster.as_ref(),
+                self.event.title().unwrap_or(""),
+            );
             paint_live_pill(&painter, response.rect, self.event.status());
 
             let response = response.on_hover_and_drag_cursor(CursorIcon::PointingHand);

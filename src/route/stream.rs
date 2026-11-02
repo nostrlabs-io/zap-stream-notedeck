@@ -10,7 +10,7 @@ use nostrdb::{Filter, Note};
 use crate::note_ref::NoteRef;
 use crate::player_health::{format_countdown, playback_for, Playback};
 use crate::stream_info::{is_moq_url, StreamInfo, StreamStatus};
-use crate::widgets::stream_player::{paint_state_card, PlayerInfo};
+use crate::widgets::stream_player::{paint_state_card, paint_state_overlay, PlayerInfo};
 use crate::sub::SubRef;
 use std::borrow::Borrow;
 use std::collections::HashSet;
@@ -41,7 +41,22 @@ impl StreamPage {
         }
     }
 
-    fn video(&mut self, ui: &mut Ui, rect: egui::Rect, event: &Note<'_>) {
+    fn video(
+        &mut self,
+        ui: &mut Ui,
+        services: &mut RouteServices<'_, '_>,
+        rect: egui::Rect,
+        event: &Note<'_>,
+    ) {
+        let need_poster = self.player.is_none() || event.status() != StreamStatus::Live;
+        let poster = if need_poster {
+            crate::poster::paint::poster_for(ui, services, event)
+        } else {
+            None
+        };
+        let backdrop = |ui: &Ui| {
+            crate::poster::paint::paint_poster(ui.painter(), rect, 16, poster.as_ref(), "");
+        };
         let forced = std::env::var("ZAP_STREAM_DEBUG_STATE").ok();
         let playback = match forced.as_deref() {
             Some("planned") => Playback::NotStarted,
@@ -79,9 +94,7 @@ impl StreamPage {
                 };
                 match &mut self.player {
                     Some(player) => player.show_controlled(ui, rect, &info),
-                    None => {
-                        ui.put(rect, PlaceholderRect);
-                    }
+                    None => backdrop(ui),
                 }
             }
             Playback::NotStarted => {
@@ -91,7 +104,8 @@ impl StreamPage {
                     Some(left) if left > 0 => crate::i18n::tf("stream.starts_in", &[("time", &format_countdown(left))]),
                     _ => crate::i18n::t("stream.starting_soon").to_string(),
                 };
-                paint_state_card(ui, rect, crate::i18n::t("stream.not_started"), &detail);
+                backdrop(ui);
+                paint_state_overlay(ui, rect, crate::i18n::t("stream.not_started"), &detail);
                 ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
             }
             Playback::Offline => {
@@ -103,7 +117,8 @@ impl StreamPage {
                 } else {
                     crate::i18n::t("stream.offline")
                 };
-                paint_state_card(ui, rect, title, crate::i18n::t("stream.check_back"));
+                backdrop(ui);
+                paint_state_overlay(ui, rect, title, crate::i18n::t("stream.check_back"));
             }
         }
     }
@@ -131,7 +146,7 @@ impl StreamPage {
                 let video_h = ((w / 16.0) * 9.0).min(h * 0.42);
                 let (rect, _) = ui.allocate_exact_size(vec2(w, video_h), egui::Sense::hover());
                 let _t = crate::frame_stats::Section::start("player");
-                self.video(ui, rect, event);
+                self.video(ui, services, rect, event);
 
                 let info_h = ((h - video_h) * 0.5).max(150.0);
                 ScrollArea::vertical()
@@ -263,7 +278,7 @@ impl StreamPage {
                             vec2(video_width, video_height),
                             egui::Sense::hover(),
                         );
-                        self.video(ui, rect, event);
+                        self.video(ui, services, rect, event);
                         ui.add_space(14.);
                         StreamTitle::new(event).render(ui, services);
                     });
