@@ -24,6 +24,13 @@ pub struct SettingsPage {
     wallet_uri: String,
     relay_input: String,
     broadcast: broadcast::Broadcast,
+    delete_step: DeleteStep,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum DeleteStep {
+    Idle,
+    Confirm,
 }
 
 impl SettingsPage {
@@ -39,6 +46,7 @@ impl SettingsPage {
             wallet_uri: String::new(),
             relay_input: String::new(),
             broadcast: broadcast::Broadcast::default(),
+            delete_step: DeleteStep::Idle,
         }
     }
 
@@ -145,6 +153,95 @@ impl SettingsPage {
         if Self::row(ui, crate::i18n::t("button.logout"), crate::i18n::t("settings.logout_desc")) {
             let me = services.ctx.accounts.get_selected_account().key.pubkey;
             services.action(RouteAction::Logout(me));
+        }
+        if Self::signed_in(services)
+            && Self::row(ui, crate::i18n::t("settings.delete_account"), crate::i18n::t("settings.delete_account_desc"))
+        {
+            self.delete_step = DeleteStep::Confirm;
+        }
+        self.delete_modal(ui, services);
+    }
+
+    fn own_events(services: &RouteServices<'_, '_>) -> Vec<crate::moderation::OwnEvent> {
+        use crate::note_util::NoteUtil;
+        let me = Self::me(services);
+        let filters = [
+            nostrdb::Filter::new().kinds([0, 3, 10_000, 30_311]).authors(&[me]).limit(200).build(),
+            nostrdb::Filter::new().kinds([1_311]).authors(&[me]).limit(200).build(),
+        ];
+        services
+            .ctx
+            .ndb
+            .query(services.tx, &filters, 400)
+            .map(|rows| {
+                rows.into_iter()
+                    .map(|r| crate::moderation::OwnEvent {
+                        kind: r.note.kind(),
+                        id: *r.note.id(),
+                        d_tag: r.note.get_tag_value("d").and_then(|v| v.variant().str().map(str::to_string)),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    fn delete_account(&mut self, services: &mut RouteServices<'_, '_>) {
+        let Some(keys) = services.current_account_keys() else {
+            return;
+        };
+        let me = Self::me(services);
+        let now = nostr::Timestamp::now().as_u64();
+        let events = crate::moderation::delete_account_events(&me, &Self::own_events(services), now);
+        for builder in [events.deletion_request, events.blank_profile] {
+            match builder.sign_with_keys(&keys) {
+                Ok(ev) => services.broadcast_event(ev),
+                Err(e) => log::warn!("Failed to sign account deletion event {}", e),
+            }
+        }
+        let pubkey = services.ctx.accounts.get_selected_account().key.pubkey;
+        services.action(RouteAction::Logout(pubkey));
+    }
+
+    fn delete_modal(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
+        if self.delete_step != DeleteStep::Confirm {
+            return;
+        }
+        let mut confirmed = false;
+        let mut cancelled = false;
+        let width = 360.0_f32.min((ui.ctx().content_rect().width() - 64.0).max(200.0));
+        let modal = egui::Modal::new(egui::Id::new("delete-account-modal")).frame(
+            Frame::new()
+                .fill(theme::SURFACE_LOW)
+                .stroke(Stroke::new(1.0, theme::SURFACE))
+                .corner_radius(16)
+                .inner_margin(Margin::same(24)),
+        );
+        let resp = modal.show(ui.ctx(), |ui| {
+            ui.set_width(width);
+            ui.spacing_mut().item_spacing.y = 10.0;
+            ui.label(theme::semibold(crate::i18n::t("settings.delete_confirm_title"), 18.0));
+            Self::body(ui, crate::i18n::t("settings.delete_explain"));
+            Self::body(ui, crate::i18n::t("settings.delete_relays"));
+            ui.label(
+                theme::semibold(crate::i18n::t("settings.delete_confirm_body"), 14.0).color(ERROR),
+            );
+            if Button::new()
+                .with_color(ERROR)
+                .full_width()
+                .text(ui, crate::i18n::t("settings.delete_confirm"))
+                .clicked()
+            {
+                confirmed = true;
+            }
+            if Button::new().full_width().text(ui, crate::i18n::t("button.cancel")).clicked() {
+                cancelled = true;
+            }
+        });
+        if confirmed {
+            self.delete_step = DeleteStep::Idle;
+            self.delete_account(services);
+        } else if cancelled || resp.should_close() {
+            self.delete_step = DeleteStep::Idle;
         }
     }
 

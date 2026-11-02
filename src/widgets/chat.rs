@@ -7,7 +7,7 @@ use crate::sub::SubRef;
 use crate::stream_info::StreamInfo;
 use crate::widgets::chat_zap::ChatZap;
 use crate::widgets::{
-    chat_badge, chat_message, chat_raid, chat_reactions, chat_timeout, emoji_picker, mute_button,
+    chat_badge, chat_message, chat_raid, chat_reactions, chat_timeout, emoji_picker, mute_button, report,
     sub_or_poll, NostrWidget,
 };
 use crate::zap::{format_sats, SenderTotals, Zap, SENDER_TOTALS_BATCH};
@@ -96,6 +96,16 @@ impl Chat {
         self.link.author
     }
 
+    fn stream_relays(&self, services: &RouteServices<'_, '_>) -> Vec<String> {
+        let mut relays = self.link.relays.clone();
+        if let Some(key) = self.stream {
+            if let Ok(note) = services.ctx.ndb.get_note_by_key(services.tx, key) {
+                relays.extend(crate::moderation::relays_from_tags(&crate::note_util::NoteUtil::tags_vec(&note)));
+            }
+        }
+        relays
+    }
+
     fn mark(&mut self, bit: u8, what: &str) {
         if self.logged & bit == 0 {
             self.logged |= bit;
@@ -149,7 +159,7 @@ impl Chat {
                     }
                 }
                 let known = self.heights.get(&row.key).copied();
-                let can_open = services.me().is_some();
+                let can_open = true;
                 let top = ui.cursor().min;
                 let rect = egui::Rect::from_min_size(
                     top,
@@ -206,10 +216,19 @@ impl Chat {
     }
 
     fn render_modal(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>, host: [u8; 32]) {
+        if self.modal.is_none() {
+            return;
+        }
+        let relays = self.stream_relays(services);
         let Some(state) = self.modal.as_mut() else {
             return;
         };
         let is_moderator = services.me() == Some(host);
+        let report_target = Some(crate::moderation::ReportTarget::Message {
+            id: state.id,
+            author: state.author,
+            relays,
+        });
         let mut close = false;
         let mut react = None;
         let mut timeout = None;
@@ -224,7 +243,7 @@ impl Chat {
             chat_reactions::show(ui, services, counts, self.data.zapped.get(&state.id).copied());
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                if ui.button("😀").clicked() {
+                if services.me().is_some() && ui.button("😀").clicked() {
                     state.picker = !state.picker;
                     state.timeouts = false;
                 }
@@ -246,9 +265,14 @@ impl Chat {
                 });
             }
             ui.add_space(8.0);
-            if mute_button::show(ui, services, &state.author) {
-                close = true;
-            }
+            ui.horizontal(|ui| {
+                if mute_button::show(ui, services, &state.author) {
+                    close = true;
+                }
+                if let Some(target) = report_target {
+                    report::button(ui, services, target);
+                }
+            });
         });
         if let Some(p) = react {
             services.react(&state.id, &state.author, &p.content, p.url.as_deref());

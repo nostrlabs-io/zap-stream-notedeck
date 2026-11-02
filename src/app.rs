@@ -437,6 +437,7 @@ impl notedeck::App for ZapStreamApp {
                                 });
                             });
                     });
+                    crate::widgets::report::show(ui, &mut svc);
                 });
             });
 

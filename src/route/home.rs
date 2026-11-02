@@ -276,6 +276,7 @@ impl NostrWidget for HomePage {
                                 services.ctx.ndb.get_note_by_key(services.tx, n.key).ok()
                             })
                             .filter(|e| e.can_play())
+                            .filter(|e| !services.is_muted(e.host()))
                             .collect();
 
                         let mut live: Vec<&Note> = events

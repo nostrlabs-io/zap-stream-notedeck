@@ -119,6 +119,10 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
     }
 
     pub fn broadcast_event(&mut self, event: Event) {
+        self.broadcast_event_to(event, &[]);
+    }
+
+    pub fn broadcast_event_to(&mut self, event: Event, extra_relays: &[String]) {
         let ev_json = event.as_json();
         if let Err(e) = self
             .ctx
@@ -133,7 +137,11 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
             .selected_account_write_relays()
             .into_iter()
             .collect::<Vec<RelayId>>();
-        for url in crate::relays::DEFAULT_RELAYS {
+        for url in crate::relays::DEFAULT_RELAYS
+            .iter()
+            .copied()
+            .chain(extra_relays.iter().map(String::as_str))
+        {
             if let Ok(u) = enostr::NormRelayUrl::new(url) {
                 let id = RelayId::Websocket(u);
                 if !relays.contains(&id) {
@@ -312,6 +320,26 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
             .and_then(|r| r.into_iter().next())
             .map(|r| crate::contacts::tags_from_note(&r.note))
             .unwrap_or_default()
+    }
+
+    pub fn send_report(
+        &mut self,
+        target: &crate::moderation::ReportTarget,
+        kind: crate::moderation::ReportType,
+    ) -> bool {
+        let Some(keys) = self.current_account_keys() else {
+            return false;
+        };
+        match crate::moderation::report_builder(target, kind).sign_with_keys(&keys) {
+            Ok(ev) => {
+                self.broadcast_event_to(ev, target.relays());
+                true
+            }
+            Err(e) => {
+                warn!("Failed to sign report {}", e);
+                false
+            }
+        }
     }
 
     pub fn is_muted(&self, target: &[u8; 32]) -> bool {
