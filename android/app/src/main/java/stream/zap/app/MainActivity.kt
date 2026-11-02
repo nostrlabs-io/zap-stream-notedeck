@@ -180,7 +180,7 @@ class MainActivity : GameActivity() {
             v.layoutParams = lp
             val rects = ArrayList<Int>()
             windowInsets.displayCutout?.boundingRects?.forEach { r ->
-                if (r.top <= 0 && r.bottom <= v.rootView.height / 4) {
+                if (r.top <= 0 && r.bottom <= resources.displayMetrics.heightPixels / 4) {
                     rects.add(r.left - insets.left)
                     rects.add(r.right - insets.left)
                     rects.add(r.bottom)

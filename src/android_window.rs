@@ -254,12 +254,17 @@ const LEFT_CLUSTER_PT: f32 = 64.0;
 const RIGHT_CLUSTER_PT: f32 = 110.0;
 const LOGO_WIDTH_PT: f32 = 150.0;
 const ACTIONS_WIDTH_PT: f32 = 200.0;
+const COMPACT_LEFT_CLUSTER_PT: f32 = 60.0;
+const COMPACT_RIGHT_CLUSTER_PT: f32 = 80.0;
+const COMPACT_MIN_SIDE_PT: f32 = 56.0;
+const WIDE_PT: f32 = 800.0;
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 pub struct HeaderTop {
     pub top: f32,
     pub left: f32,
     pub right: f32,
+    pub compact_height: Option<f32>,
 }
 
 pub fn header_top(pixels_per_point: f32, width_pt: f32) -> HeaderTop {
@@ -269,18 +274,31 @@ pub fn header_top(pixels_per_point: f32, width_pt: f32) -> HeaderTop {
 fn plan_header_top(band_px: i32, rects: &[[i32; 3]], pixels_per_point: f32, width_pt: f32) -> HeaderTop {
     let ppp = pixels_per_point.max(1.0);
     let band = band_px as f32 / ppp;
-    let below = HeaderTop { top: band, left: 0.0, right: 0.0 };
+    let below = HeaderTop { top: band, left: 0.0, right: 0.0, compact_height: None };
     if band_px <= 0 || rects.is_empty() {
         return below;
     }
-    let fits = rects.iter().all(|r| {
-        let (left, right) = (r[0] as f32 / ppp, r[1] as f32 / ppp);
-        left - LEFT_CLUSTER_PT >= LOGO_WIDTH_PT && width_pt - RIGHT_CLUSTER_PT - right >= ACTIONS_WIDTH_PT
-    });
+    let first_left = rects.iter().map(|r| r[0]).min().unwrap_or(0) as f32 / ppp;
+    let last_right = rects.iter().map(|r| r[1]).max().unwrap_or(0) as f32 / ppp;
+    if width_pt >= WIDE_PT {
+        let fits = first_left - LEFT_CLUSTER_PT >= LOGO_WIDTH_PT
+            && width_pt - RIGHT_CLUSTER_PT - last_right >= ACTIONS_WIDTH_PT;
+        if !fits {
+            return below;
+        }
+        return HeaderTop { top: 0.0, left: LEFT_CLUSTER_PT, right: RIGHT_CLUSTER_PT, compact_height: None };
+    }
+    let fits = first_left - COMPACT_LEFT_CLUSTER_PT >= COMPACT_MIN_SIDE_PT
+        && width_pt - COMPACT_RIGHT_CLUSTER_PT - last_right >= COMPACT_MIN_SIDE_PT;
     if !fits {
         return below;
     }
-    HeaderTop { top: 0.0, left: LEFT_CLUSTER_PT, right: RIGHT_CLUSTER_PT }
+    HeaderTop {
+        top: 0.0,
+        left: COMPACT_LEFT_CLUSTER_PT,
+        right: COMPACT_RIGHT_CLUSTER_PT,
+        compact_height: Some(band),
+    }
 }
 
 pub fn cutout_rects() -> Vec<[i32; 3]> {
@@ -315,14 +333,37 @@ mod tests {
     }
 
     #[test]
-    fn header_shares_status_row_only_when_both_sides_fit() {
-        let centered = [[1000, 1080, 90]];
-        let at_left = [[0, 136, 136]];
-        let wide = plan_header_top(136, &centered, 2.625, 900.0);
-        assert_eq!(wide.top, 0.0);
-        let narrow = plan_header_top(136, &[[500, 580, 90]], 2.625, 411.0);
-        assert_eq!(narrow.top, 136.0 / 2.625);
-        assert_eq!(plan_header_top(136, &at_left, 2.625, 900.0).top, 136.0 / 2.625);
+    fn compact_header_chosen_for_centered_cutout_on_phone() {
+        let plan = plan_header_top(136, &[[414, 666, 126]], 2.825, 382.0);
+        assert_eq!(plan.top, 0.0);
+        assert_eq!(plan.compact_height, Some(136.0 / 2.825));
+    }
+
+    #[test]
+    fn header_falls_back_below_band_for_edge_cutout() {
+        let plan = plan_header_top(136, &[[0, 136, 136]], 2.625, 411.0);
+        assert_eq!(plan.top, 136.0 / 2.625);
+        assert_eq!(plan.compact_height, None);
+        let right_edge = plan_header_top(136, &[[944, 1080, 136]], 2.625, 411.0);
+        assert_eq!(right_edge.top, 136.0 / 2.625);
+    }
+
+    #[test]
+    fn header_falls_back_when_free_side_is_too_narrow() {
+        let plan = plan_header_top(136, &[[300, 780, 90]], 2.625, 411.0);
+        assert_eq!(plan.top, 136.0 / 2.625);
+    }
+
+    #[test]
+    fn wide_header_keeps_full_layout() {
+        let plan = plan_header_top(136, &[[1000, 1080, 90]], 2.625, 900.0);
+        assert_eq!(plan.top, 0.0);
+        assert_eq!(plan.compact_height, None);
+        assert_eq!(plan.left, 64.0);
+    }
+
+    #[test]
+    fn no_cutout_or_band_leaves_header_untouched() {
         assert_eq!(plan_header_top(0, &[], 2.625, 411.0).top, 0.0);
         assert_eq!(plan_header_top(136, &[], 2.625, 900.0).top, 136.0 / 2.625);
     }

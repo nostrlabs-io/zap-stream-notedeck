@@ -59,6 +59,97 @@ impl Header {
         Self { can_go_back }
     }
 
+    fn render_compact(
+        &mut self,
+        ui: &mut Ui,
+        services: &mut RouteServices<'_, '_>,
+        tx: &Transaction,
+        plan: crate::android_window::HeaderTop,
+        height: f32,
+    ) -> Response {
+        let r = Frame::new()
+            .inner_margin(Margin {
+                left: plan.left.round() as i8,
+                right: plan.right.round() as i8,
+                top: 0,
+                bottom: 0,
+            })
+            .show(ui, |ui| {
+                let size = vec2(ui.available_width(), height);
+                ui.allocate_ui_with_layout(size, Layout::left_to_right(Align::Center), |ui| {
+                    ui.spacing_mut().item_spacing.x = 8.;
+                    if self.can_go_back {
+                        let back = Image::from_bytes(
+                            "arrow_left.svg",
+                            include_bytes!("../resources/icons/arrow-left.svg"),
+                        )
+                        .max_height(20.)
+                        .sense(Sense::click())
+                        .ui(ui)
+                        .on_hover_and_drag_cursor(CursorIcon::PointingHand);
+                        if back.clicked() {
+                            services.action(crate::route::RouteAction::Back);
+                        }
+                    }
+                    let logo = Image::from_bytes(
+                        "header_logo.svg",
+                        include_bytes!("../resources/logo_amber.svg"),
+                    )
+                    .max_height(22.)
+                    .sense(Sense::click())
+                    .ui(ui)
+                    .on_hover_and_drag_cursor(CursorIcon::PointingHand);
+                    if logo.clicked() {
+                        services.navigate(RouteType::HomePage);
+                    }
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        ui.set_height(height);
+                        ui.spacing_mut().item_spacing.x = 8.;
+                        let acc = services.ctx.accounts.get_selected_account();
+                        let logged_in = acc.key.secret_key.is_some()
+                            || (!acc.key.pubkey.bytes().iter().all(|b| *b == 0)
+                                && !is_fallback(&acc.key.pubkey));
+                        if logged_in {
+                            let pubkey = acc.key.pubkey;
+                            let avatar = Avatar::pubkey(pubkey.bytes(), services.ctx.ndb, tx)
+                                .size(28.)
+                                .render(ui, services.ctx);
+                            if avatar.clicked() {
+                                services.navigate(RouteType::ProfilePage {
+                                    link: NostrLink::profile(pubkey.bytes()),
+                                });
+                            }
+                        } else {
+                            let clicked = Button::primary()
+                                .padding(Margin::symmetric(10, 4))
+                                .text(ui, crate::i18n::t("button.login"))
+                                .clicked();
+                            if clicked {
+                                services.navigate(RouteType::LoginPage);
+                            }
+                        }
+                        let search = Image::from_bytes(
+                            "search.svg",
+                            include_bytes!("../resources/icons/search.svg"),
+                        )
+                        .max_height(22.)
+                        .sense(Sense::click())
+                        .ui(ui)
+                        .on_hover_and_drag_cursor(CursorIcon::PointingHand);
+                        if search.clicked() {
+                            services.navigate(RouteType::SearchPage {
+                                query: String::new(),
+                            });
+                        }
+                    });
+                });
+            });
+        let rect = r.response.rect;
+        ui.painter()
+            .hline(rect.x_range(), rect.bottom(), Stroke::new(1.0, BORDER));
+        r.response
+    }
+
     pub fn render(
         &mut self,
         ui: &mut Ui,
@@ -67,6 +158,9 @@ impl Header {
     ) -> Response {
         let wide = ui.available_width() >= theme::WIDE_BREAKPOINT;
         let plan = crate::android_window::header_top(ui.ctx().pixels_per_point(), ui.available_width());
+        if let Some(height) = plan.compact_height {
+            return self.render_compact(ui, services, tx, plan, height);
+        }
         let r = Frame::new()
             .inner_margin(Margin {
                 left: (16.0 + plan.left).round().clamp(0.0, 127.0) as i8,
