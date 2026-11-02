@@ -159,7 +159,7 @@ class MainActivity : GameActivity() {
     private external fun nativeSetInsets(top: Int, rects: IntArray)
 
     override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
-        ev.offsetLocation(-insetLeft.toFloat(), 0f)
+        ev.offsetLocation(-2f * insetLeft, 0f)
         return super.dispatchTouchEvent(ev)
     }
 

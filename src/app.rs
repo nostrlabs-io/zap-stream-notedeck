@@ -156,7 +156,7 @@ impl ZapStreamApp {
     }
 
     fn go_back(&mut self) {
-        if let Some(prev) = self.history.pop() {
+        if let Some(prev) = back_target(self.widget.exit_fullscreen(), &mut self.history) {
             self.open_route(prev);
         }
     }
@@ -196,6 +196,14 @@ impl ZapStreamApp {
         }
         self.fonts_set = true;
         crate::theme::install_fonts(ctx);
+    }
+}
+
+fn back_target<T>(exited_fullscreen: bool, history: &mut Vec<T>) -> Option<T> {
+    if exited_fullscreen {
+        None
+    } else {
+        history.pop()
     }
 }
 
@@ -472,5 +480,19 @@ impl notedeck::App for ZapStreamApp {
 impl ZapStreamApp {
     fn frame_margin(&self) -> Margin {
         Margin::ZERO
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::back_target;
+
+    #[test]
+    fn back_exits_fullscreen_before_popping_history() {
+        let mut history = vec![1, 2];
+        assert_eq!(back_target(true, &mut history), None);
+        assert_eq!(history, vec![1, 2]);
+        assert_eq!(back_target(false, &mut history), Some(2));
+        assert_eq!(history, vec![1]);
     }
 }
