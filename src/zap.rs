@@ -90,6 +90,50 @@ pub fn window_start(anchor: u64) -> u64 {
     anchor.saturating_sub(86_400)
 }
 
+pub struct ZapBackfill {
+    window_start: u64,
+    max_pages: usize,
+    page: usize,
+    previous_count: Option<usize>,
+    done: bool,
+}
+
+impl ZapBackfill {
+    pub fn new(window_start: u64, max_pages: usize) -> Self {
+        Self {
+            window_start,
+            max_pages,
+            page: 0,
+            previous_count: None,
+            done: false,
+        }
+    }
+
+    pub fn is_done(&self) -> bool {
+        self.done
+    }
+
+    pub fn pages_requested(&self) -> usize {
+        self.page + 1
+    }
+
+    pub fn settle(&mut self, count: usize, oldest: Option<u64>) -> Option<u64> {
+        if self.done {
+            return None;
+        }
+        let stalled = self.previous_count == Some(count);
+        let reached_window_start = oldest.map_or(true, |o| o <= self.window_start);
+        let out_of_pages = self.page + 1 >= self.max_pages;
+        if stalled || reached_window_start || out_of_pages {
+            self.done = true;
+            return None;
+        }
+        self.previous_count = Some(count);
+        self.page += 1;
+        oldest
+    }
+}
+
 pub fn top_senders(zaps: &[Zap<'_>], limit: usize) -> Vec<([u8; 32], u64)> {
     let mut by_sender: std::collections::HashMap<[u8; 32], u64> = Default::default();
     for z in zaps {
@@ -217,6 +261,40 @@ mod total_format_tests {
         assert_eq!(format_sats_total(999_600), "1M");
         assert_eq!(format_sats_total(1_000_000), "1M");
         assert_eq!(format_sats_total(2_340_000), "2.3M");
+    }
+
+    #[test]
+    fn backfill_pages_until_oldest_then_stops_when_a_page_adds_nothing() {
+        let mut b = ZapBackfill::new(1_000, 10);
+        assert_eq!(b.settle(500, Some(9_000)), Some(9_000));
+        assert_eq!(b.settle(900, Some(5_000)), Some(5_000));
+        assert_eq!(b.settle(1_084, Some(2_000)), Some(2_000));
+        assert_eq!(b.settle(1_084, Some(2_000)), None);
+        assert!(b.is_done());
+        assert_eq!(b.settle(2_000, Some(1_500)), None);
+    }
+
+    #[test]
+    fn backfill_stops_at_window_start() {
+        let mut b = ZapBackfill::new(1_000, 10);
+        assert_eq!(b.settle(500, Some(1_000)), None);
+        assert!(b.is_done());
+    }
+
+    #[test]
+    fn backfill_stops_with_nothing_received() {
+        let mut b = ZapBackfill::new(1_000, 10);
+        assert_eq!(b.settle(0, None), None);
+        assert!(b.is_done());
+    }
+
+    #[test]
+    fn backfill_is_capped_at_max_pages() {
+        let mut b = ZapBackfill::new(0, 3);
+        assert_eq!(b.settle(10, Some(900)), Some(900));
+        assert_eq!(b.settle(20, Some(800)), Some(800));
+        assert_eq!(b.settle(30, Some(700)), None);
+        assert_eq!(b.pages_requested(), 3);
     }
 
     #[test]

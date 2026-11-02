@@ -16,6 +16,11 @@ pub struct HomePage {
     sub: Option<SubRef>,
     zaps: HashSet<NoteRef>,
     zap_sub: Option<SubRef>,
+    zap_page_subs: Vec<Option<SubRef>>,
+    backfill: crate::zap::ZapBackfill,
+    backfill_seen: usize,
+    settle_logged: bool,
+    backfill_quiet_since: std::time::Instant,
     preview: Option<(String, widgets::StreamPlayer)>,
     board: (u64, Vec<([u8; 32], u64)>),
     board_len: usize,
@@ -65,6 +70,11 @@ impl HomePage {
             sub: None,
             zaps: HashSet::new(),
             zap_sub: None,
+            zap_page_subs: Vec::new(),
+            backfill: new_backfill(now_secs()),
+            backfill_seen: 0,
+            settle_logged: false,
+            backfill_quiet_since: std::time::Instant::now(),
         }
     }
 
@@ -74,12 +84,58 @@ impl HomePage {
         self.board_len = usize::MAX;
         self.sub = None;
         self.zap_sub = None;
+        self.zap_page_subs.clear();
+        self.zaps.clear();
+        self.backfill = new_backfill(self.window_anchor);
+        self.backfill_seen = 0;
+        self.backfill_quiet_since = std::time::Instant::now();
         self.pull.refreshed_at = Some(std::time::Instant::now());
     }
 
-    fn zap_filters() -> Vec<Filter> {
-        let since = crate::zap::window_start(now_secs());
-        vec![Filter::new().kinds([9_735]).since(since).limit(5_000).build()]
+    fn zap_filters(anchor: u64, until: Option<u64>) -> Vec<Filter> {
+        let since = crate::zap::window_start(anchor);
+        let filter = Filter::new().kinds([9_735]).since(since).limit(5_000);
+        vec![match until {
+            Some(u) => filter.until(u).build(),
+            None => filter.build(),
+        }]
+    }
+
+    fn advance_backfill(&mut self, services: &mut RouteServices<'_, '_>) -> anyhow::Result<()> {
+        if self.backfill.is_done() {
+            return Ok(());
+        }
+        if self.zaps.len() != self.backfill_seen {
+            self.backfill_seen = self.zaps.len();
+            self.backfill_quiet_since = std::time::Instant::now();
+        }
+        let quiet = self.backfill_quiet_since.elapsed();
+        let settle_after = if self.zaps.is_empty() { BACKFILL_EMPTY_WAIT } else { BACKFILL_QUIET };
+        if quiet < settle_after {
+            services.ctx.egui.map(|c| c.request_repaint_after(BACKFILL_QUIET / 4));
+            return Ok(());
+        }
+        let oldest = self.zaps.iter().map(|r| r.created_at).min();
+        match self.backfill.settle(self.zaps.len(), oldest) {
+            Some(until) => {
+                let mut sub = None;
+                sub_or_poll(
+                    services.ctx,
+                    services.tx,
+                    &mut self.zaps,
+                    &mut sub,
+                    Self::zap_filters(self.window_anchor, Some(until)),
+                )?;
+                self.zap_page_subs.push(sub);
+                self.backfill_quiet_since = std::time::Instant::now();
+                self.backfill_seen = self.zaps.len();
+            }
+            None => {
+                self.board_len = usize::MAX;
+                self.settle_logged = false;
+            }
+        }
+        Ok(())
     }
 
     fn leaderboard(&mut self, services: &mut RouteServices<'_, '_>) -> (u64, Vec<([u8; 32], u64)>) {
@@ -103,6 +159,15 @@ impl HomePage {
             if self.totals.take_dirty() {
                 self.board = (self.totals.total(), self.totals.top(5));
             }
+            if self.backfill.is_done() && !self.board_pending && !self.settle_logged {
+                self.settle_logged = true;
+                log::warn!(
+                    "zap backfill settled: pages={} events={} total_sats={}",
+                    self.backfill.pages_requested(),
+                    self.zaps.len(),
+                    self.totals.total()
+                );
+            }
             if self.board_pending {
                 services.ctx.egui.map(|c| c.request_repaint());
             }
@@ -122,7 +187,8 @@ impl HomePage {
             ui.label(theme::semibold(crate::i18n::t("home.zapped_24h"), 15.0));
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 6.0;
-                ui.label(theme::display(crate::zap::format_sats_total(total), 46.0).color(theme::PRIMARY));
+                let approx = if self.backfill.is_done() { "" } else { "~" };
+                ui.label(theme::display(format!("{approx}{}", crate::zap::format_sats_total(total)), 46.0).color(theme::PRIMARY));
                 ui.label(theme::medium(crate::i18n::t("common.sats"), 16.0).color(theme::MUTED));
             });
             for (pk, sats) in top {
@@ -415,8 +481,12 @@ impl NostrWidget for HomePage {
             services.tx,
             &mut self.zaps,
             &mut self.zap_sub,
-            Self::zap_filters(),
+            Self::zap_filters(self.window_anchor, None),
         )?;
+        for sub in self.zap_page_subs.iter_mut() {
+            sub_or_poll(services.ctx, services.tx, &mut self.zaps, sub, Vec::new())?;
+        }
+        self.advance_backfill(services)?;
         sub_or_poll(
             services.ctx,
             services.tx,
@@ -461,6 +531,14 @@ mod tests {
         p.update(true, true, -50.0);
         assert_eq!(p.distance, 0.0);
     }
+}
+
+const BACKFILL_QUIET: std::time::Duration = std::time::Duration::from_millis(2_500);
+const BACKFILL_EMPTY_WAIT: std::time::Duration = std::time::Duration::from_secs(8);
+const BACKFILL_MAX_PAGES: usize = 10;
+
+fn new_backfill(anchor: u64) -> crate::zap::ZapBackfill {
+    crate::zap::ZapBackfill::new(crate::zap::window_start(anchor), BACKFILL_MAX_PAGES)
 }
 
 fn now_secs() -> u64 {
