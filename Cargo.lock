@@ -4103,7 +4103,7 @@ dependencies = [
 [[package]]
 name = "lumina-video"
 version = "0.2.2"
-source = "git+https://github.com/v0l/lumina-video?branch=egui-0.36#821c7584470ed39da26bbe607bed9aadd6fd9763"
+source = "git+https://github.com/v0l/lumina-video?branch=egui-0.36#68966a544ff6a4a4ce800ca69e338b00b9ac3920"
 dependencies = [
  "android-activity",
  "ash",
@@ -4165,7 +4165,7 @@ dependencies = [
 [[package]]
 name = "lumina-video-core"
 version = "0.2.2"
-source = "git+https://github.com/v0l/lumina-video?branch=egui-0.36#821c7584470ed39da26bbe607bed9aadd6fd9763"
+source = "git+https://github.com/v0l/lumina-video?branch=egui-0.36#68966a544ff6a4a4ce800ca69e338b00b9ac3920"
 dependencies = [
  "android-activity",
  "ash",
