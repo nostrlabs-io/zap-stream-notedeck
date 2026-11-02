@@ -59,7 +59,7 @@ impl StreamPlayer {
             renditions: Vec::new(),
             selected_quality: None,
             menu_open: false,
-            fullscreen: false,
+            fullscreen: std::env::var_os("ZAP_STREAM_DEBUG_FULLSCREEN").is_some(),
             fullscreen_sent: false,
             last_activity: Instant::now(),
             unhealthy_since: None,
@@ -202,7 +202,9 @@ impl StreamPlayer {
             self.last_activity = Instant::now();
         }
         let paused = self.player.as_ref().map(|p| !p.is_playing()).unwrap_or(true);
-        let visible = paused || self.last_activity.elapsed() < CONTROLS_HIDE_AFTER;
+        let visible = paused
+            || std::env::var_os("ZAP_STREAM_DEBUG_CONTROLS").is_some()
+            || self.last_activity.elapsed() < CONTROLS_HIDE_AFTER;
         if visible && !paused {
             ui.ctx().request_repaint_after(CONTROLS_HIDE_AFTER);
         }

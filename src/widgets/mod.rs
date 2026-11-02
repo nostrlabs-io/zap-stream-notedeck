@@ -10,7 +10,7 @@ mod chat_zap;
 pub(crate) mod emoji_picker;
 pub(crate) mod mute_button;
 pub(crate) mod note_embed;
-mod goal;
+pub mod goal;
 mod header;
 mod hero;
 mod pill;

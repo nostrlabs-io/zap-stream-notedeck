@@ -42,11 +42,16 @@ impl StreamPage {
     }
 
     fn video(&mut self, ui: &mut Ui, rect: egui::Rect, event: &Note<'_>) {
-        let playback = playback_for(
-            &event.status(),
-            event.streaming().is_some(),
-            event.recording().is_some(),
-        );
+        let forced = std::env::var("ZAP_STREAM_DEBUG_STATE").ok();
+        let playback = match forced.as_deref() {
+            Some("planned") => Playback::NotStarted,
+            Some("offline") | Some("ended") => Playback::Offline,
+            _ => playback_for(
+                &event.status(),
+                event.streaming().is_some(),
+                event.recording().is_some(),
+            ),
+        };
         let moq_only = event.streaming().map_or(false, is_moq_url)
             && event.recording().map_or(true, str::is_empty);
         if moq_only && playback == Playback::Play {
@@ -91,7 +96,9 @@ impl StreamPage {
             }
             Playback::Offline => {
                 self.player = None;
-                let title = if event.status() == StreamStatus::Ended {
+                let title = if event.status() == StreamStatus::Ended
+                    || forced.as_deref() == Some("ended")
+                {
                     crate::i18n::t("stream.ended")
                 } else {
                     crate::i18n::t("stream.offline")
@@ -121,7 +128,7 @@ impl StreamPage {
             Layout::top_down(Align::Min),
             |ui| {
                 ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-                let video_h = (w / 16.0) * 9.0;
+                let video_h = ((w / 16.0) * 9.0).min(h * 0.42);
                 let (rect, _) = ui.allocate_exact_size(vec2(w, video_h), egui::Sense::hover());
                 let _t = crate::frame_stats::Section::start("player");
                 self.video(ui, rect, event);
@@ -153,10 +160,15 @@ impl StreamPage {
                         let _t = crate::frame_stats::Section::start("chat");
                         self.goal_bar(ui, services);
                         if let Some(c) = self.chat.as_mut() {
-                            ui.allocate_ui(
-                                vec2(w, (ui.available_height() - chat_h).max(0.0)),
+                            let chat_rect = egui::Rect::from_min_size(
+                                ui.cursor().min + vec2(8.0, 0.0),
+                                vec2(w - 16.0, (ui.available_height() - chat_h).max(0.0)),
+                            );
+                            ui.scope_builder(
+                                egui::UiBuilder::new().max_rect(chat_rect),
                                 |ui| c.render(ui, services),
                             );
+                            ui.advance_cursor_after_rect(chat_rect);
                         } else {
                             ui.label(crate::i18n::t("common.loading"));
                         }
@@ -176,7 +188,11 @@ impl StreamPage {
     }
 
     fn goal_bar(&self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
-        if let Some(g) = &self.goal {
+        if let Some((title, total, target)) = crate::widgets::goal::debug_goal() {
+            Frame::new()
+                .inner_margin(egui::Margin::symmetric(16, 8))
+                .show(ui, |ui| crate::widgets::goal::paint_goal(ui, &title, total, target));
+        } else if let Some(g) = &self.goal {
             Frame::new()
                 .inner_margin(egui::Margin::symmetric(16, 8))
                 .show(ui, |ui| g.render(ui, services));
