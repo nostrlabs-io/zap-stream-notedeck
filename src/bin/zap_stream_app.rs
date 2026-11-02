@@ -14,10 +14,7 @@ async fn main() -> Result<()> {
         ..Default::default()
     };
 
-    let data_path = ProjectDirs::from("stream", "zap", "zap_stream_app")
-        .unwrap()
-        .data_dir()
-        .to_path_buf();
+    let data_path = data_path();
 
     info!("Data path: {}", data_path.display());
     if let Err(e) = eframe::run_native(
@@ -34,4 +31,20 @@ async fn main() -> Result<()> {
         error!("{}", e);
     }
     Ok(())
+}
+
+#[cfg(target_os = "ios")]
+fn data_path() -> std::path::PathBuf {
+    let home = std::env::var("HOME").expect("HOME");
+    let path = std::path::Path::new(&home).join("Library/Application Support/zap_stream_app");
+    std::fs::create_dir_all(&path).expect("data dir");
+    path
+}
+
+#[cfg(not(target_os = "ios"))]
+fn data_path() -> std::path::PathBuf {
+    ProjectDirs::from("stream", "zap", "zap_stream_app")
+        .unwrap()
+        .data_dir()
+        .to_path_buf()
 }
