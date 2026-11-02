@@ -39,10 +39,10 @@ nwc = "0.39.0"
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 rfd = { version = "0.15", default-features = false, features = ["xdg-portal", "tokio"] }
-eframe = { version = "0.36.2", default-features = false, features = ["wgpu", "wayland", "x11", "default_fonts"] }
+eframe = { version = "0.36.2", default-features = false, features = ["wgpu", "wayland", "x11", "default_fonts", "system_fonts"] }
 
 [target.'cfg(target_os = "android")'.dependencies]
-eframe = { version = "0.36.2", default-features = false, features = ["wgpu", "android-game-activity", "default_fonts"] }
+eframe = { version = "0.36.2", default-features = false, features = ["wgpu", "android-game-activity", "default_fonts", "system_fonts"] }
 android_logger = "0.15.0"
 jni = "0.21.1"
 ndk-context = "0.1"

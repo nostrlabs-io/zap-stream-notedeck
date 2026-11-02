@@ -73,11 +73,6 @@ pub fn install_fonts(ctx: &egui::Context) {
     );
     load(
         &mut fd,
-        "NotoEmoji",
-        include_bytes!("../assets/fonts/NotoEmoji-Regular.ttf"),
-    );
-    load(
-        &mut fd,
         "Bricolage-Bold",
         include_bytes!("../assets/fonts/Bricolage-Bold.ttf"),
     );
@@ -93,7 +88,7 @@ pub fn install_fonts(ctx: &egui::Context) {
         .cloned()
         .unwrap_or_default();
     let with_fallback = |first: &str| {
-        let mut v = vec![first.to_string(), "NotoEmoji".to_string()];
+        let mut v = vec![first.to_string()];
         v.extend(fallback.iter().cloned());
         v
     };

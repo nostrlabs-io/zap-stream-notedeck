@@ -24,7 +24,7 @@ mod profiles;
 mod route;
 mod stream_info;
 mod sub;
-mod theme;
+pub mod theme;
 mod widgets;
 mod zap;
 mod zap_api;
