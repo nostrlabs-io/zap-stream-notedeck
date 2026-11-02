@@ -1,10 +1,26 @@
 #[cfg(target_os = "android")]
+static ACTIVITY: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+
+#[cfg(target_os = "android")]
+pub fn set_activity(ptr: *mut std::ffi::c_void) {
+    let _ = ACTIVITY.set(ptr as usize);
+}
+
+#[cfg(target_os = "android")]
+fn activity_ptr() -> *mut jni::sys::_jobject {
+    match ACTIVITY.get() {
+        Some(p) => *p as *mut jni::sys::_jobject,
+        None => ndk_context::android_context().context().cast(),
+    }
+}
+
+#[cfg(target_os = "android")]
 fn call_activity(method: &str, sig: &str, args: &[jni::objects::JValue]) {
     let ctx = ndk_context::android_context();
     let result = (|| -> jni::errors::Result<()> {
         let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast())? };
         let mut env = vm.attach_current_thread()?;
-        let activity = unsafe { jni::objects::JObject::from_raw(ctx.context().cast()) };
+        let activity = unsafe { jni::objects::JObject::from_raw(activity_ptr()) };
         env.call_method(&activity, method, sig, args)?;
         if env.exception_check()? {
             env.exception_clear()?;
@@ -22,7 +38,7 @@ fn call_activity_str(method: &str, arg: &str) {
     let result = (|| -> jni::errors::Result<()> {
         let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast())? };
         let mut env = vm.attach_current_thread()?;
-        let activity = unsafe { jni::objects::JObject::from_raw(ctx.context().cast()) };
+        let activity = unsafe { jni::objects::JObject::from_raw(activity_ptr()) };
         let s = env.new_string(arg)?;
         env.call_method(
             &activity,
@@ -46,7 +62,7 @@ fn read_clipboard() -> String {
     let result = (|| -> jni::errors::Result<String> {
         let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast())? };
         let mut env = vm.attach_current_thread()?;
-        let activity = unsafe { jni::objects::JObject::from_raw(ctx.context().cast()) };
+        let activity = unsafe { jni::objects::JObject::from_raw(activity_ptr()) };
         let value = env
             .call_method(&activity, "getClipboardText", "()Ljava/lang/String;", &[])?
             .l()?;
@@ -77,7 +93,7 @@ pub fn set_clipboard_text(text: &str) {
         let result = (|| -> jni::errors::Result<()> {
             let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast())? };
             let mut env = vm.attach_current_thread()?;
-            let activity = unsafe { jni::objects::JObject::from_raw(ctx.context().cast()) };
+            let activity = unsafe { jni::objects::JObject::from_raw(activity_ptr()) };
             let s = env.new_string(text)?;
             env.call_method(
                 &activity,

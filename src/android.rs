@@ -10,6 +10,7 @@ pub fn start_android(app: AndroidApp) {
             .with_max_level(log::LevelFilter::Info),
     );
     log::info!("start_android");
+    crate::android_window::set_activity(app.activity_as_ptr());
 
     std::panic::set_hook(Box::new(|info| log::error!("panic: {info}")));
 

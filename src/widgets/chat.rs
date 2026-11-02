@@ -15,6 +15,46 @@ use egui::{Id, Modal, Response, ScrollArea, Sense, Ui};
 use nostrdb::{Filter, NoteKey};
 use std::collections::{HashMap, HashSet};
 
+const LONG_PRESS_SECS: f64 = 0.45;
+
+fn long_press_in(ui: &Ui, rect: egui::Rect, id: Id) -> bool {
+    let ctx = ui.ctx();
+    let (down, pos, started, still, now) = ctx.input(|i| {
+        (
+            i.pointer.primary_down(),
+            i.pointer.interact_pos(),
+            i.pointer.press_start_time(),
+            i.pointer.is_still(),
+            i.time,
+        )
+    });
+    let inside = pos.is_some_and(|p| rect.contains(p));
+    let fired_key = Id::new("chat-hold-fired");
+    if !down {
+        if inside {
+            ctx.data_mut(|d| d.remove::<Id>(fired_key));
+        }
+        return false;
+    }
+    if !inside || !still {
+        return false;
+    }
+    let Some(started) = started else {
+        return false;
+    };
+    let elapsed = now - started;
+    if elapsed < LONG_PRESS_SECS {
+        ctx.request_repaint_after(std::time::Duration::from_millis(60));
+        return false;
+    }
+    let already = ctx.data(|d| d.get_temp::<Id>(fired_key));
+    if already == Some(id) {
+        return false;
+    }
+    ctx.data_mut(|d| d.insert_temp(fired_key, id));
+    true
+}
+
 struct ModalState {
     id: [u8; 32],
     author: [u8; 32],
@@ -151,6 +191,8 @@ impl Chat {
                 let known = self.heights.get(&row.key).copied();
                 let can_open = services.me().is_some();
                 let top = ui.cursor().min;
+                let row_left = ui.max_rect().left();
+                let row_width = ui.available_width();
                 let rect = egui::Rect::from_min_size(
                     top,
                     egui::vec2(ui.available_width(), known.unwrap_or(0.0)),
@@ -173,8 +215,21 @@ impl Chat {
                 let counts = self.data.reactions.get(id).map(|v| v.as_slice()).unwrap_or(&[]);
                 let sats = self.data.zapped.get(id).copied();
                 chat_reactions::show(ui, services, counts, sats);
-                if let Some(bg) = bg {
-                    if bg.clicked() || bg.long_touched() || bg.secondary_clicked() {
+                let full_rect = egui::Rect::from_min_max(
+                    egui::pos2(row_left, top.y),
+                    egui::pos2(row_left + row_width, ui.cursor().min.y),
+                );
+                let held = long_press_in(ui, full_rect, Id::new(("chat-row-hold", row.key)));
+                if held {
+                    self.modal = Some(ModalState {
+                        id: *id,
+                        author: *author,
+                        content: content.clone(),
+                        picker: false,
+                        timeouts: false,
+                    });
+                } else if let Some(bg) = bg {
+                    if bg.clicked() || bg.secondary_clicked() {
                         self.modal = Some(ModalState {
                             id: *id,
                             author: *author,
