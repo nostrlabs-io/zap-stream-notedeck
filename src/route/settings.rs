@@ -175,7 +175,7 @@ impl SettingsPage {
         }
     }
 
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     fn start_upload(&mut self, services: &RouteServices<'_, '_>) {
         let Some(keys) = services.current_account_keys() else {
             return;
@@ -218,7 +218,7 @@ impl SettingsPage {
         });
     }
 
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     fn start_upload(&mut self, _services: &RouteServices<'_, '_>) {
         self.status = Some(Err(crate::i18n::t("settings.upload_unavailable").to_string()));
     }
