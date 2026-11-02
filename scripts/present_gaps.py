@@ -1,0 +1,184 @@
+#!/usr/bin/env python3
+import argparse
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import time
+
+import numpy as np
+
+ADB_DEFAULT = os.environ.get("ADB_SERIAL", "adb-47021FDAS00035-w5xiL3._adb-tls-connect._tcp")
+ADB_BIN = os.path.expanduser("~/Android/Sdk/platform-tools/adb")
+BUCKETS = [8.5, 12, 17, 25, 33, 42, 58, 70, 90, 110, 130, 160, 250, 500, 1e9]
+
+
+def adb(args, serial, **kw):
+    return subprocess.run([ADB_BIN, "-s", serial] + args, capture_output=True, text=True, **kw).stdout
+
+
+def list_layers(serial, pkg):
+    out = adb(["shell", "dumpsys", "SurfaceFlinger", "--list"], serial)
+    names = []
+    for line in out.splitlines():
+        m = re.match(r"RequestedLayerState\{(.*?)(#\d+)( |\})", line)
+        name = (m[1] + m[2]) if m else line.strip()
+        if pkg in name and "ActivityRecord" not in name and "InputSink" not in name:
+            names.append(name)
+    return names
+
+
+def poll_latency(serial, layer, secs):
+    seen = {}
+    end = time.time() + secs
+    period = None
+    while time.time() < end:
+        out = adb(["shell", "dumpsys", "SurfaceFlinger", "--latency", f'"{layer}"'], serial)
+        lines = out.split()
+        if not lines:
+            time.sleep(0.3)
+            continue
+        period = int(lines[0])
+        rows = [lines[i : i + 3] for i in range(1, len(lines) - 2, 3)]
+        for d, a, r in rows:
+            a = int(a)
+            if a > 0 and a < 2**62:
+                seen[a] = (int(d), int(r))
+        time.sleep(0.35)
+    return sorted(seen), period
+
+
+def histogram(intervals_ms, label, source_ms=None, vsync_ms=None):
+    n = len(intervals_ms)
+    if n == 0:
+        print(f"{label}: no intervals")
+        return
+    a = np.array(intervals_ms)
+    print(f"{label}: intervals={n} mean={a.mean():.1f}ms p50={np.percentile(a,50):.1f} p95={np.percentile(a,95):.1f} p99={np.percentile(a,99):.1f} max={a.max():.0f}")
+    lo = 0.0
+    for hi in BUCKETS:
+        c = int(((a >= lo) & (a < hi)).sum())
+        if c:
+            name = f"{lo:g}-{hi:g}" if hi < 1e8 else f">={lo:g}"
+            print(f"  {name:>10} ms {c:6d} {100*c/n:5.1f}% {'#'*int(60*c/n)}")
+        lo = hi
+    if source_ms:
+        tol = vsync_ms or 8.33
+        near = ((a >= source_ms - tol - 1) & (a <= source_ms + tol + 1)).sum()
+        beyond = ((a > source_ms + tol + 1) | (a < source_ms - tol - 1)).sum()
+        print(f"  within 1 source period +/- 1 vsync ({source_ms:g}ms +/- {tol:g}): {100*near/n:.1f}%  outside: {100*beyond/n:.1f}%")
+
+
+def cmd_sf(args):
+    layers = [args.layer] if args.layer else list_layers(args.serial, args.package)
+    if not layers:
+        sys.exit("no layers found, is the app in the foreground?")
+    print("layers:", *layers, sep="\n  ")
+    layer = args.layer or sorted(layers, key=lambda n: ("SurfaceView" not in n, len(n)))[0]
+    print("using:", layer, f"for {args.secs}s")
+    times, period = poll_latency(args.serial, layer, args.secs)
+    iv = [(b - a) / 1e6 for a, b in zip(times, times[1:]) if b - a < 2e9]
+    print(f"vsync period {period/1e6 if period else '?'} ms, presented buffers {len(times)}")
+    histogram(iv, "SF presented-buffer intervals", args.source_ms, args.vsync_ms)
+
+
+def cmd_rec(args):
+    remote = "/sdcard/present_gaps.mp4"
+    local = args.out or tempfile.mktemp(suffix=".mp4")
+    print(f"recording {args.secs}s from the screen")
+    subprocess.run(
+        [ADB_BIN, "-s", args.serial, "shell", "screenrecord", "--time-limit", str(args.secs), "--size", args.size, "--bit-rate", "20000000", remote],
+        check=False,
+    )
+    subprocess.run([ADB_BIN, "-s", args.serial, "pull", remote, local], check=True, capture_output=True)
+    adb(["shell", "rm", remote], args.serial)
+    analyse_video(local, args)
+
+
+def probe_size(path):
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height", "-of", "csv=p=0", path],
+        capture_output=True, text=True,
+    ).stdout.strip()
+    w, h = out.split(",")
+    return int(w), int(h)
+
+
+def analyse_video(path, args):
+    w, h = probe_size(path)
+    if args.crop:
+        cx, cy, cw, ch = [int(v) for v in args.crop.split(":")]
+    else:
+        cw = w
+        ch = int(w * 9 / 16)
+        cx, cy = 0, int(h * args.top)
+    pts = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "frame=pts_time,best_effort_timestamp_time", "-of", "csv=p=0", path],
+        capture_output=True, text=True,
+    ).stdout.split()
+    times = []
+    for line in pts:
+        parts = [p for p in line.split(",") if p and p != "N/A"]
+        times.append(float(parts[0]))
+    gw, gh = 96, int(96 * ch / cw)
+    raw = subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", path, "-vf", f"crop={cw}:{ch}:{cx}:{cy},scale={gw}:{gh},format=gray", "-fps_mode", "passthrough", "-f", "rawvideo", "-"],
+        capture_output=True,
+    ).stdout
+    frames = np.frombuffer(raw, dtype=np.uint8).reshape(-1, gh, gw).astype(np.int16)
+    n = min(len(frames), len(times))
+    frames, times = frames[:n], times[:n]
+    diffs = np.abs(np.diff(frames, axis=0)).mean(axis=(1, 2))
+    changed = [times[i + 1] for i in range(len(diffs)) if diffs[i] > args.threshold]
+    iv = [(b - a) * 1000 for a, b in zip(changed, changed[1:])]
+    print(f"recorded frames {n}, content changes {len(changed)}, crop {cw}x{ch}+{cx}+{cy}, recording fps {n/max(times[-1]-times[0],1e-6):.1f}")
+    histogram(iv, "video content-change intervals", args.source_ms, args.vsync_ms)
+
+
+def cmd_gfx(args):
+    out = adb(["shell", "dumpsys", "gfxinfo", args.package, "framestats"], args.serial)
+    rows = []
+    for line in out.splitlines():
+        if re.match(r"^\d+,", line):
+            f = line.split(",")
+            if len(f) > 13 and f[0] == "0":
+                rows.append((int(f[1]), int(f[13])))
+    rows.sort()
+    iv = [(b[0] - a[0]) / 1e6 for a, b in zip(rows, rows[1:])]
+    dur = [(r[1] - r[0]) / 1e6 for r in rows]
+    print(f"UI frames {len(rows)}")
+    histogram(iv, "UI frame intents interval", None)
+    if dur:
+        d = np.array(dur)
+        print(f"UI frame total duration p50={np.percentile(d,50):.1f} p95={np.percentile(d,95):.1f} p99={np.percentile(d,99):.1f}")
+
+
+def main():
+    p = argparse.ArgumentParser(description="Histogram of what reaches the display while a stream plays")
+    p.add_argument("mode", choices=["sf", "rec", "gfx", "video"])
+    p.add_argument("--serial", default=ADB_DEFAULT)
+    p.add_argument("--package", default="stream.zap.app")
+    p.add_argument("--layer")
+    p.add_argument("--secs", type=int, default=30)
+    p.add_argument("--source-ms", type=float, default=50.0)
+    p.add_argument("--vsync-ms", type=float, default=8.33)
+    p.add_argument("--size", default="504x1122")
+    p.add_argument("--top", type=float, default=0.07)
+    p.add_argument("--crop")
+    p.add_argument("--threshold", type=float, default=0.15)
+    p.add_argument("--out")
+    p.add_argument("--file")
+    a = p.parse_args()
+    if a.mode == "sf":
+        cmd_sf(a)
+    elif a.mode == "rec":
+        cmd_rec(a)
+    elif a.mode == "gfx":
+        cmd_gfx(a)
+    else:
+        analyse_video(a.file, a)
+
+
+if __name__ == "__main__":
+    main()
