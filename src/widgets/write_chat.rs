@@ -55,7 +55,7 @@ impl WriteChat {
             return resp;
         }
         let logo_bytes = include_bytes!("../resources/send-03.svg");
-        Frame::new()
+        let input_box = Frame::new()
             .inner_margin(egui::Margin::symmetric(12, 8))
             .outer_margin(egui::Margin::same(12))
             .fill(NEUTRAL_900)
@@ -93,13 +93,16 @@ impl WriteChat {
                     }
                     ui.add(NativeTextInput::new(&mut self.msg).with_hint_text(crate::i18n::t("chat.message_hint")));
                 });
-            });
+            })
+            .response
+            .rect;
         if self.picker_open && disabled_until.is_none() {
             let mut keep_open = true;
             egui::Window::new("emoji-picker")
                 .title_bar(false)
                 .resizable(false)
-                .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-12.0, -80.0))
+                .pivot(egui::Align2::RIGHT_BOTTOM)
+                .fixed_pos(input_box.right_top() - egui::vec2(0.0, 6.0))
                 .show(ui.ctx(), |ui| {
                     if let Some(p) = emoji_picker::show(ui, services, custom_emoji) {
                         self.msg.push_str(&p.content);
