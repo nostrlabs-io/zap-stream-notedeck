@@ -19,6 +19,8 @@ pub struct HomePage {
     preview: Option<(String, widgets::StreamPlayer)>,
     board: (u64, Vec<([u8; 32], u64)>),
     board_len: usize,
+    board_pending: bool,
+    totals: crate::zap::SenderTotals<nostrdb::NoteKey>,
     render_state: Option<egui_wgpu::RenderState>,
     pull: PullToRefresh,
 }
@@ -54,6 +56,8 @@ impl HomePage {
             pull: PullToRefresh::default(),
             board: (0, Vec::new()),
             board_len: usize::MAX,
+            board_pending: false,
+            totals: crate::zap::SenderTotals::new(),
             render_state,
             events: HashSet::new(),
             sub: None,
@@ -77,30 +81,27 @@ impl HomePage {
     }
 
     fn leaderboard(&mut self, services: &mut RouteServices<'_, '_>) -> (u64, Vec<([u8; 32], u64)>) {
-        if self.board_len == self.zaps.len() {
-            return self.board.clone();
-        }
-        self.board_len = self.zaps.len();
-        self.board = self.compute_leaderboard(services);
-        self.board.clone()
-    }
-
-    fn compute_leaderboard(&self, services: &mut RouteServices<'_, '_>) -> (u64, Vec<([u8; 32], u64)>) {
-        let mut total = 0u64;
-        let mut by_sender: std::collections::HashMap<[u8; 32], u64> = Default::default();
-        for r in &self.zaps {
-            if let Ok(note) = services.ctx.ndb.get_note_by_key(services.tx, r.key) {
-                if let Ok(z) = crate::zap::Zap::from_receipt(note) {
-                    let sats = z.amount / 1000;
-                    total += sats;
-                    *by_sender.entry(z.sender).or_default() += sats;
-                }
+        if self.board_len != self.zaps.len() || self.board_pending {
+            let ndb = &services.ctx.ndb;
+            let tx = services.tx;
+            self.board_pending = self.totals.absorb(
+                self.zaps.iter().map(|r| &r.key),
+                crate::zap::SENDER_TOTALS_BATCH,
+                |key| {
+                    let note = ndb.get_note_by_key(tx, key).ok()?;
+                    let z = crate::zap::Zap::from_receipt(note).ok()?;
+                    Some((z.sender, z.amount))
+                },
+            );
+            self.board_len = self.zaps.len();
+            if self.totals.take_dirty() {
+                self.board = (self.totals.total(), self.totals.top(5));
+            }
+            if self.board_pending {
+                services.ctx.egui.map(|c| c.request_repaint());
             }
         }
-        let mut list: Vec<_> = by_sender.into_iter().collect();
-        list.sort_by_key(|(_, v)| std::cmp::Reverse(*v));
-        list.truncate(5);
-        (total, list)
+        self.board.clone()
     }
 
     fn zapped_panel(
