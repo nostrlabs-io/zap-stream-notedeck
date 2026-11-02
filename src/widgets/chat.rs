@@ -270,7 +270,9 @@ impl Chat {
                     close = true;
                 }
                 if let Some(target) = report_target {
-                    report::button(ui, services, target);
+                    if report::button(ui, services, target) {
+                        close = true;
+                    }
                 }
             });
         });

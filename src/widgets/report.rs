@@ -26,9 +26,9 @@ fn store(ctx: &Context, state: Option<ReportState>) {
     ctx.data_mut(|d| d.insert_temp(state_id(), state));
 }
 
-pub fn button(ui: &mut Ui, services: &mut RouteServices<'_, '_>, target: ReportTarget) {
+pub fn button(ui: &mut Ui, services: &mut RouteServices<'_, '_>, target: ReportTarget) -> bool {
     if services.me() == Some(target.author()) {
-        return;
+        return false;
     }
     if !services.can_sign() {
         if Button::new()
@@ -36,12 +36,15 @@ pub fn button(ui: &mut Ui, services: &mut RouteServices<'_, '_>, target: ReportT
             .clicked()
         {
             services.navigate(RouteType::LoginPage);
+            return true;
         }
-        return;
+        return false;
     }
     if Button::new().text(ui, crate::i18n::t("button.report")).clicked() {
         open(ui.ctx(), target);
+        return true;
     }
+    false
 }
 
 fn title_key(target: &ReportTarget) -> &'static str {
