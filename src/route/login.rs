@@ -71,7 +71,7 @@ impl LoginPage {
     fn try_login(&mut self, services: &mut RouteServices<'_, '_>) {
         match parse_key(&self.key) {
             Some(kp) => self.add_and_select(services, kp),
-            None => self.error = Some("Invalid key".to_string()),
+            None => self.error = Some(crate::i18n::t("login.invalid_key").to_string()),
         }
     }
 
@@ -192,36 +192,36 @@ impl LoginPage {
 
     fn step_welcome(&mut self, ui: &mut Ui) {
         ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-            Self::title(ui, "Welcome to zap.stream");
+            Self::title(ui, crate::i18n::t("login.welcome"));
             Self::body(
                 ui,
-                "Watch, stream and get paid in sats. No email or password needed.",
+                crate::i18n::t("login.welcome_body"),
             );
         });
         ui.add_space(6.0);
-        if Self::primary(ui, "Create an account", true) {
+        if Self::primary(ui, crate::i18n::t("login.create_account"), true) {
             self.keys = Some(nostr::Keys::generate());
             self.step = Step::Profile;
         }
         ui.with_layout(egui::Layout::top_down(egui::Align::Center), |ui| {
-            ui.label(theme::medium("Already on nostr?", 14.0).color(theme::MUTED));
+            ui.label(theme::medium(crate::i18n::t("login.already_nostr"), 14.0).color(theme::MUTED));
         });
         let _ = Self::option_row(
             ui,
-            "Nostr extension",
-            "No extension found in this app",
+            crate::i18n::t("login.extension"),
+            crate::i18n::t("login.extension_missing"),
         );
-        if Self::option_row(ui, "Private key", "Paste your nsec. Less secure.") {
+        if Self::option_row(ui, crate::i18n::t("login.private_key"), crate::i18n::t("login.private_key_hint")) {
             self.step = Step::PasteKey;
         }
     }
 
     fn step_paste(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
-        Self::title(ui, "Log in with a key");
-        Self::body(ui, "Paste your nsec, or an npub to browse as read only.");
-        Self::label(ui, "npub, nsec or hex key");
+        Self::title(ui, crate::i18n::t("login.with_key"));
+        Self::body(ui, crate::i18n::t("login.with_key_body"));
+        Self::label(ui, crate::i18n::t("login.key_label"));
         Self::field(ui, &mut self.key, "nsec1... or npub1...", true);
-        let go = Self::primary(ui, "Login", !self.key.trim().is_empty());
+        let go = Self::primary(ui, crate::i18n::t("button.login"), !self.key.trim().is_empty());
         if go || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
             self.try_login(services);
         }
@@ -231,15 +231,15 @@ impl LoginPage {
     }
 
     fn step_profile(&mut self, ui: &mut Ui) {
-        Self::title(ui, "Set up your profile");
+        Self::title(ui, crate::i18n::t("login.profile_title"));
         Self::body(
             ui,
-            "This is how viewers will see you. You can change it later.",
+            crate::i18n::t("login.profile_body"),
         );
         ui.add_space(4.0);
-        Self::label(ui, "Display name");
+        Self::label(ui, crate::i18n::t("profile.display_name"));
         Self::field(ui, &mut self.name, "Satoshi", false);
-        if Self::primary(ui, "Continue", !self.name.trim().is_empty()) {
+        if Self::primary(ui, crate::i18n::t("button.continue"), !self.name.trim().is_empty()) {
             if self.address.is_empty() {
                 if let Some(k) = &self.keys {
                     self.address = format!("{}@zap.stream", k.public_key().to_hex());
@@ -250,24 +250,24 @@ impl LoginPage {
     }
 
     fn step_address(&mut self, ui: &mut Ui) {
-        Self::title(ui, "Get paid by viewers");
+        Self::title(ui, crate::i18n::t("login.address_title"));
         Self::body(
             ui,
-            "Zaps from viewers go to this lightning address. We made you one, or paste your own.",
+            crate::i18n::t("login.address_body"),
         );
-        Self::label(ui, "Lightning address");
+        Self::label(ui, crate::i18n::t("profile.lightning_address"));
         Self::field(ui, &mut self.address, "you@wallet.com", true);
-        Self::body(ui, "You can always replace it with your own address later.");
-        if Self::primary(ui, "Continue", true) {
+        Self::body(ui, crate::i18n::t("login.address_later"));
+        if Self::primary(ui, crate::i18n::t("button.continue"), true) {
             self.step = Step::SaveKey;
         }
     }
 
     fn step_save(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
-        Self::title(ui, "Save your key");
+        Self::title(ui, crate::i18n::t("login.save_title"));
         Self::body(
             ui,
-            "This key is your account. There is no password reset, so if you lose it, the account is gone for good.",
+            crate::i18n::t("login.save_body"),
         );
         let nsec = self.shown_key();
         let shown = Self::masked(&nsec);
@@ -287,7 +287,7 @@ impl LoginPage {
                     );
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
-                            theme::medium(if self.copied { "copied" } else { "copy" }, 13.0)
+                            theme::medium(if self.copied { crate::i18n::t("button.copied_lower") } else { crate::i18n::t("button.copy_lower") }, 13.0)
                                 .color(theme::MUTED),
                         );
                     });
@@ -302,11 +302,11 @@ impl LoginPage {
         }
         ui.checkbox(
             &mut self.saved,
-            RichText::new("I saved my key somewhere safe, like a password manager")
+            RichText::new(crate::i18n::t("login.saved_confirm"))
                 .size(14.0)
                 .color(theme::TEXT_SOFT),
         );
-        if Self::primary(ui, "Finish", self.saved) {
+        if Self::primary(ui, crate::i18n::t("button.finish"), self.saved) {
             self.finish(services);
         }
     }

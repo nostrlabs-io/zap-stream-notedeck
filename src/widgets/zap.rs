@@ -78,7 +78,7 @@ impl<'a> ZapButton<'a> {
             .text(ui, crate::i18n::t("button.zap"));
         let open_id = egui::Id::new("zap_modal_open");
         if !can_sign {
-            return resp.on_hover_text("Log in with a private key to zap");
+            return resp.on_hover_text(crate::i18n::t("zap.login_required"));
         }
         if resp.clicked()
             || std::env::var_os("ZAP_STREAM_DEBUG_ZAP").is_some_and(|_| {
@@ -193,7 +193,7 @@ impl<'a> ZapButton<'a> {
                             .filter(|e| !e.is_empty())
                         {
                             ui.label(
-                                RichText::new(format!("Wallet payment failed: {}", e))
+                                RichText::new(crate::i18n::tf("zap.wallet_failed", &[("error", &e)]))
                                     .color(crate::theme::MUTED),
                             );
                         }
@@ -207,7 +207,7 @@ impl<'a> ZapButton<'a> {
                         job.append(&invoice.pr, 0.0, TextFormat::default());
                         ui.label(job);
                         ui.horizontal(|ui| {
-                            if Button::new().text(ui, "Copy invoice").clicked() {
+                            if Button::new().text(ui, crate::i18n::t("zap.copy_invoice")).clicked() {
                                 ui.ctx().copy_text(invoice.pr.clone());
                             }
                             if Button::primary()
@@ -233,7 +233,7 @@ impl<'a> ZapButton<'a> {
                         ui.label(crate::theme::display_bold_text("Cannot zap", 22.0));
                         ui.label(RichText::new(e).color(crate::theme::MUTED));
                         ui.add_space(8.0);
-                        if Button::new().text(ui, "Close").clicked() {
+                        if Button::new().text(ui, crate::i18n::t("button.close")).clicked() {
                             ui.close();
                         }
                     });
@@ -265,7 +265,7 @@ impl<'a> ZapButton<'a> {
         if uri != old {
             services.set("nwc_uri", uri.clone());
         }
-        if Button::new().text(ui, "Connect wallet").clicked() {
+        if Button::new().text(ui, crate::i18n::t("zap.connect_wallet")).clicked() {
             match notedeck::Wallet::new(uri.trim().to_string()) {
                 Ok(w) => {
                     services.ctx.global_wallet.wallet = Some(w.into());
@@ -288,7 +288,7 @@ impl<'a> ZapButton<'a> {
                     let inv: LnURLPayInvoice = serde_json::from_slice(&r.bytes)?;
                     Ok(Poll::Ready(inv))
                 } else {
-                    bail!("Invalid response code {}", r.status);
+                    bail!("{}", crate::i18n::tf("error.response_code", &[("code", &r.status.to_string())]));
                 }
             }
             Poll::Ready(Err(e)) => Err(anyhow!("{}", e)),
@@ -313,11 +313,11 @@ impl<'a> ZapButton<'a> {
         let fallback_name = self.target.to_string();
         let target_name = target_name.unwrap_or(&fallback_name);
         ui.label(crate::theme::display_bold_text(
-            format!("Zap {}", target_name),
+            crate::i18n::tf("zap.title", &[("name", &target_name)]),
             26.0,
         ));
 
-        ui.label(crate::theme::medium("Zap amount in sats", 14.0).color(crate::theme::MUTED));
+        ui.label(crate::theme::medium(crate::i18n::t("zap.amount"), 14.0).color(crate::theme::MUTED));
 
         // amount buttons
         const SATS_AMOUNTS: &[u64] = &[
@@ -367,7 +367,7 @@ impl<'a> ZapButton<'a> {
             .corner_radius(ROUNDING_DEFAULT)
             .show(ui, |ui| {
                 NativeTextInput::new(&mut zap_comment)
-                    .with_hint_text("Optional comment")
+                    .with_hint_text(crate::i18n::t("zap.comment_hint"))
                     .with_frame(true)
                     .ui(ui)
             });
@@ -423,7 +423,7 @@ impl<'a> ZapButton<'a> {
             })
             .collect();
         if relays.is_empty() {
-            bail!("No relays found");
+            bail!("{}", crate::i18n::t("error.no_relays"));
         }
         let mut req = ZapRequestData::new(PublicKey::from_slice(pubkey)?, relays)
             .message(zap_comment)
@@ -445,7 +445,7 @@ impl<'a> ZapButton<'a> {
         let keys = if let Some(k) = services.current_account_keys() {
             k
         } else {
-            bail!("Not logged in")
+            bail!("{}", crate::i18n::t("error.not_logged_in"))
         };
 
         let req_ev = EventBuilder::new(Kind::ZapRequest, zap_comment)

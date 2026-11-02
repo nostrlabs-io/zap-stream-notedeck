@@ -12,12 +12,7 @@ pub fn show(ui: &mut Ui, services: &mut RouteServices<'_, '_>, t: &Timeout) {
         .collect();
     ui.add(
         egui::Label::new(
-            RichText::new(format!(
-                "{} timed out {} for {}",
-                moderator,
-                users.join(", "),
-                format_duration(t.duration())
-            ))
+            RichText::new(crate::i18n::tf("chat.timed_out", &[("moderator", &moderator), ("users", &users.join(", ")), ("duration", &format_duration(t.duration()))]))
             .color(MUTED),
         )
         .wrap(),

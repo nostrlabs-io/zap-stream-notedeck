@@ -40,7 +40,7 @@ impl<'a> ChatZap<'a> {
                     format.color = ZAP;
                     job.append(name, 0.0, format.clone());
                     format.color = Color32::WHITE;
-                    job.append("zapped", 5.0, format.clone());
+                    job.append(crate::i18n::t("chat.zapped"), 5.0, format.clone());
                     format.color = ZAP;
                     job.append(
                         &format_sats((self.zap.amount / 1000) as f32),
@@ -48,7 +48,7 @@ impl<'a> ChatZap<'a> {
                         format.clone(),
                     );
                     format.color = Color32::WHITE;
-                    job.append("sats", 5.0, format.clone());
+                    job.append(crate::i18n::t("common.sats"), 5.0, format.clone());
 
                     if !self.zap.message.is_empty() {
                         job.append(&format!("\n{}", self.zap.message), 0.0, format.clone());

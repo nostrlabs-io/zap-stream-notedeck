@@ -96,14 +96,14 @@ impl Broadcast {
                 Ok(Err(e)) => self.load = Load::Failed(e),
                 Err(mpsc::TryRecvError::Empty) => {}
                 Err(mpsc::TryRecvError::Disconnected) => {
-                    self.load = Load::Failed("Request dropped".to_string())
+                    self.load = Load::Failed(crate::i18n::t("broadcast.dropped").to_string())
                 }
             }
         }
         if let Some(rx) = &self.saving {
             match rx.try_recv() {
                 Ok(Ok(())) => {
-                    self.status = Some(Ok("Stream settings saved".to_string()));
+                    self.status = Some(Ok(crate::i18n::t("broadcast.saved").to_string()));
                     self.saving = None;
                 }
                 Ok(Err(e)) => {
@@ -147,22 +147,22 @@ impl Broadcast {
                 egui::Label::new(RichText::new(shown).monospace().size(14.0).color(theme::TEXT))
                     .wrap_mode(egui::TextWrapMode::Wrap),
             );
-            if Button::new().text(ui, "Copy").clicked() {
+            if Button::new().text(ui, crate::i18n::t("button.copy")).clicked() {
                 ui.ctx().copy_text(value.to_string());
             }
         });
     }
 
     pub fn render(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
-        if Button::new().text(ui, "Back").clicked() {
+        if Button::new().text(ui, crate::i18n::t("button.back")).clicked() {
             services.navigate(RouteType::SettingsPage {
                 section: SettingsSection::Menu,
             });
         }
-        SettingsPage::title(ui, "Go live");
+        SettingsPage::title(ui, crate::i18n::t("settings.go_live"));
         if !services.can_sign() {
             ui.label(
-                theme::medium("Log in with a private key to go live", 15.0).color(theme::MUTED),
+                theme::medium(crate::i18n::t("broadcast.login_required"), 15.0).color(theme::MUTED),
             );
             return;
         }
@@ -174,34 +174,34 @@ impl Broadcast {
             Load::Loaded(a) => a.clone(),
             Load::Failed(e) => {
                 ui.label(RichText::new(e.clone()).color(ERROR));
-                if Button::new().text(ui, "Retry").clicked() {
+                if Button::new().text(ui, crate::i18n::t("button.retry")).clicked() {
                     self.load = Load::Idle;
                 }
                 return;
             }
             _ => {
-                ui.label(theme::medium("Loading...", 14.0).color(theme::MUTED));
+                ui.label(theme::medium(crate::i18n::t("common.loading_dots"), 14.0).color(theme::MUTED));
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
                 return;
             }
         };
         if !account.tos_accepted {
-            SettingsPage::body(ui, "You need to accept the terms of service before streaming.");
+            SettingsPage::body(ui, crate::i18n::t("broadcast.tos"));
             if let Some(link) = &account.tos_link {
                 ui.hyperlink(link);
             }
-            if Button::primary().text(ui, "Accept").clicked() {
+            if Button::primary().text(ui, crate::i18n::t("button.accept")).clicked() {
                 self.accept_tos(services);
             }
             self.poll();
             return;
         }
-        SettingsPage::label(ui, "Balance");
+        SettingsPage::label(ui, crate::i18n::t("broadcast.balance"));
         ui.label(
-            theme::display(format!("{} sats", account.balance as i64), 24.0).color(theme::PRIMARY),
+            theme::display(crate::i18n::tf("common.sats_amount", &[("n", &(account.balance as i64).to_string())]), 24.0).color(theme::PRIMARY),
         );
         if account.endpoints.is_empty() {
-            SettingsPage::body(ui, "No ingest endpoints available for this account.");
+            SettingsPage::body(ui, crate::i18n::t("broadcast.no_endpoints"));
         } else {
             self.endpoint = self.endpoint.min(account.endpoints.len() - 1);
             let ep = &account.endpoints[self.endpoint];
@@ -213,24 +213,24 @@ impl Broadcast {
                 }
             });
             ui.label(
-                theme::medium(format!("{} sats/{}", ep.rate, ep.unit), 14.0).color(theme::MUTED),
+                theme::medium(crate::i18n::tf("broadcast.rate", &[("rate", &ep.rate.to_string()), ("unit", &ep.unit)]), 14.0).color(theme::MUTED),
             );
-            Self::copy_row(ui, "Server URL", &ep.url, false);
-            Self::copy_row(ui, "Stream key", &ep.key, !self.show_key);
-            let toggle = if self.show_key { "Hide key" } else { "Show key" };
+            Self::copy_row(ui, crate::i18n::t("broadcast.server_url"), &ep.url, false);
+            Self::copy_row(ui, crate::i18n::t("broadcast.stream_key"), &ep.key, !self.show_key);
+            let toggle = if self.show_key { crate::i18n::t("broadcast.hide_key") } else { crate::i18n::t("broadcast.show_key") };
             if Button::new().text(ui, toggle).clicked() {
                 self.show_key = !self.show_key;
             }
         }
-        SettingsPage::label(ui, "Title");
-        SettingsPage::field(ui, &mut self.form.title, "Stream title", false);
-        SettingsPage::label(ui, "Summary");
-        SettingsPage::field(ui, &mut self.form.summary, "What is this stream about", false);
-        SettingsPage::label(ui, "Tags (comma separated)");
+        SettingsPage::label(ui, crate::i18n::t("broadcast.title"));
+        SettingsPage::field(ui, &mut self.form.title, crate::i18n::t("broadcast.title_hint"), false);
+        SettingsPage::label(ui, crate::i18n::t("broadcast.summary"));
+        SettingsPage::field(ui, &mut self.form.summary, crate::i18n::t("broadcast.summary_hint"), false);
+        SettingsPage::label(ui, crate::i18n::t("broadcast.tags"));
         SettingsPage::field(ui, &mut self.tags, "irl, music", false);
-        SettingsPage::label(ui, "Goal (event id, optional)");
+        SettingsPage::label(ui, crate::i18n::t("broadcast.goal"));
         SettingsPage::field(ui, &mut self.form.goal, "note1... or hex", true);
-        ui.checkbox(&mut self.nsfw, "Content warning (NSFW)");
+        ui.checkbox(&mut self.nsfw, crate::i18n::t("broadcast.nsfw"));
         match &self.status {
             Some(Ok(m)) => {
                 ui.label(theme::medium(m, 14.0).color(theme::PRIMARY));
@@ -246,7 +246,7 @@ impl Broadcast {
             .radius(255)
             .full_width()
             .disabled(busy)
-            .text(ui, "Save")
+            .text(ui, crate::i18n::t("button.save"))
             .clicked()
             && !busy
         {

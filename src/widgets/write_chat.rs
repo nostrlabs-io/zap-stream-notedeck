@@ -42,7 +42,7 @@ impl WriteChat {
                 .show(ui, |ui| {
                     ui.set_width(ui.available_width());
                     ui.label(
-                        crate::theme::medium("Log in with a private key to chat", 14.0)
+                        crate::theme::medium(crate::i18n::t("chat.login_required"), 14.0)
                             .color(crate::theme::MUTED),
                     );
                 })
@@ -66,9 +66,9 @@ impl WriteChat {
                     let text = match until {
                         Some(t) => {
                             let left = t.saturating_sub(nostr::Timestamp::now().as_u64());
-                            format!("Chat disabled, timeout ends in {}", format_duration(left))
+                            crate::i18n::tf("chat.disabled_timeout", &[("left", &format_duration(left))])
                         }
-                        None => "Chat disabled".to_string(),
+                        None => crate::i18n::t("chat.disabled").to_string(),
                     };
                     ui.label(RichText::new(text).color(MUTED));
                     return;
@@ -92,7 +92,7 @@ impl WriteChat {
                     if toggle.clicked() {
                         self.picker_open = !self.picker_open;
                     }
-                    ui.add(NativeTextInput::new(&mut self.msg).with_hint_text("Message.."));
+                    ui.add(NativeTextInput::new(&mut self.msg).with_hint_text(crate::i18n::t("chat.message_hint")));
                 });
             });
         if self.picker_open && disabled_until.is_none() {

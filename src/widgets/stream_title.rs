@@ -25,7 +25,7 @@ impl<'a> StreamTitle<'a> {
             ui.spacing_mut().item_spacing = egui::vec2(8., 0.);
             let profile = services.profile(&host);
             Avatar::from_profile(&profile).size(28.).render(ui, services.ctx);
-            let toggle = if expanded { "Less" } else { "More" };
+            let toggle = if expanded { crate::i18n::t("button.less") } else { crate::i18n::t("button.more") };
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if Button::new().text(ui, toggle).clicked() {
                     ui.data_mut(|d| d.insert_temp(id, !expanded));
@@ -145,17 +145,18 @@ impl<'a> StreamTitle<'a> {
                 StreamStatus::Live => PRIMARY,
                 _ => SURFACE,
             };
-            ui.add(Pill::new(&status.to_string()).color(color));
+            ui.add(Pill::new(match status {
+                StreamStatus::Live => crate::i18n::t("status.live"),
+                StreamStatus::Planned => crate::i18n::t("status.planned"),
+                StreamStatus::Ended => crate::i18n::t("status.ended"),
+            }).color(color));
             if status == StreamStatus::Live {
                 if let Some(v) = self.event.viewers() {
-                    ui.add(Pill::new(&format!("{} viewers", v)));
+                    ui.add(Pill::new(&crate::i18n::tf("stream.viewers", &[("n", &v.to_string())])));
                 }
             }
             if status == StreamStatus::Planned {
-                ui.add(Pill::new(&format!(
-                    "Starts {}",
-                    format_starts(self.event.starts())
-                )));
+                ui.add(Pill::new(&crate::i18n::tf("stream.starts", &[("when", &format_starts(self.event.starts()))])));
             }
         });
 
@@ -232,7 +233,7 @@ fn format_starts(ts: u64) -> String {
         .map(|d| d.as_secs())
         .unwrap_or(0);
     match ts.checked_sub(now) {
-        Some(left) if left > 0 => format!("in {}", crate::player_health::format_countdown(left)),
-        _ => "soon".to_string(),
+        Some(left) if left > 0 => crate::i18n::tf("time.in", &[("time", &crate::player_health::format_countdown(left))]),
+        _ => crate::i18n::t("time.soon").to_string(),
     }
 }

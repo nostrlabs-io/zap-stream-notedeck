@@ -66,7 +66,7 @@ pub fn award(
                     .iter()
                     .map(|u| super::chat_message::display_name(services, u))
                     .collect();
-                ui.label(format!("Awarded to {}", names.join(", ")));
+                ui.label(crate::i18n::tf("badge.awarded", &[("names", &names.join(", "))]));
             });
         });
 }

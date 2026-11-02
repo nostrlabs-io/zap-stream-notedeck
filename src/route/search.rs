@@ -30,8 +30,8 @@ pub fn matching_categories(q: &str) -> Vec<(&'static str, &'static str)> {
     }
     CATEGORIES
         .iter()
+        .map(|(t, _)| (*t, crate::route::listing::category_name(t).unwrap_or(t)))
         .filter(|(t, n)| t.contains(&q) || n.to_lowercase().contains(&q))
-        .copied()
         .collect()
 }
 
@@ -95,7 +95,7 @@ impl NostrWidget for SearchPage {
 
                         let categories = matching_categories(&self.query);
                         if !categories.is_empty() {
-                            Self::heading(ui, "Categories");
+                            Self::heading(ui, crate::i18n::t("nav.categories"));
                             ui.horizontal_wrapped(|ui| {
                                 for (tag, name) in categories {
                                     let r = ui
@@ -120,7 +120,7 @@ impl NostrWidget for SearchPage {
                             .map(|v| v.into_iter().copied().collect())
                             .unwrap_or_default();
                         if !profiles.is_empty() {
-                            Self::heading(ui, "Profiles");
+                            Self::heading(ui, crate::i18n::t("search.profiles"));
                             for pk in profiles {
                                 let profile = services.profile(&pk);
                                 let r = ui
@@ -165,7 +165,7 @@ impl NostrWidget for SearchPage {
                                 }
                             }
                         }
-                        Self::heading(ui, "Streams");
+                        Self::heading(ui, crate::i18n::t("nav.streams"));
                         if events.is_empty() {
                             ui.label(theme::medium(crate::i18n::t("listing.empty"), 15.0).color(MUTED));
                         }

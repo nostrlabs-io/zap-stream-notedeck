@@ -92,7 +92,7 @@ impl Goal {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
                             theme::medium(
-                                format!("{} sats to go", format_sats(remaining_sats as f32)),
+                                crate::i18n::tf("goal.to_go", &[("n", &format_sats(remaining_sats as f32))]),
                                 12.0,
                             )
                             .color(MUTED),
@@ -115,7 +115,7 @@ impl Goal {
                 painter.text(
                     rect.center(),
                     Align2::CENTER_CENTER,
-                    "Goal reached",
+                    crate::i18n::t("goal.reached"),
                     egui::FontId::new(10.0, theme::medium_family()),
                     ON_PRIMARY,
                 );

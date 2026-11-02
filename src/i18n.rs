@@ -144,3 +144,54 @@ mod tests {
         assert!(out.contains('a') && out.contains('3') && !out.contains('{'));
     }
 }
+
+#[cfg(test)]
+mod key_usage_tests {
+    use super::*;
+    use std::path::Path;
+
+    fn rust_files(dir: &Path, out: &mut Vec<std::path::PathBuf>) {
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                rust_files(&path, out);
+            } else if path.extension().is_some_and(|e| e == "rs") {
+                out.push(path);
+            }
+        }
+    }
+
+    fn keys_in(text: &str) -> Vec<String> {
+        let mut found = Vec::new();
+        for call in ["i18n::t(\"", "i18n::tf(\"", " t(\"", "(t(\""] {
+            let mut rest = text;
+            while let Some(i) = rest.find(call) {
+                rest = &rest[i + call.len()..];
+                if let Some(end) = rest.find('"') {
+                    found.push(rest[..end].to_string());
+                }
+            }
+        }
+        found
+    }
+
+    #[test]
+    fn every_key_used_in_code_exists_in_english() {
+        let mut files = Vec::new();
+        rust_files(&Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut files);
+        let english = &tables()[0];
+        let mut missing = Vec::new();
+        let mut used = 0;
+        for file in files {
+            let text = std::fs::read_to_string(&file).unwrap();
+            for key in keys_in(&text) {
+                used += 1;
+                if !key.contains('{') && !english.contains_key(key.as_str()) {
+                    missing.push(format!("{}: {}", file.display(), key));
+                }
+            }
+        }
+        assert!(used > 50, "scanner found only {used} keys");
+        assert!(missing.is_empty(), "keys missing from en.tsv: {missing:?}");
+    }
+}

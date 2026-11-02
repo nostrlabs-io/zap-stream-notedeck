@@ -184,7 +184,7 @@ fn live_badge(ui: &Ui, origin: Pos2, elapsed: Option<&str>, viewers: Option<u32>
         chip(e.to_string());
     }
     if let Some(v) = viewers {
-        chip(format!("{v} watching"));
+        chip(crate::i18n::tf("player.watching", &[("n", &v.to_string())]));
     }
 }
 
@@ -270,7 +270,7 @@ pub fn show(ui: &mut Ui, rect: Rect, input: &ControlsInput<'_>) -> ControlsOutpu
             );
             ui.painter()
                 .rect_filled(menu, CornerRadius::same(10), Color32::from_black_alpha(220));
-            let labels = std::iter::once("Auto").chain(input.qualities.iter().map(|s| s.as_str()));
+            let labels = std::iter::once(crate::i18n::t("player.auto")).chain(input.qualities.iter().map(|s| s.as_str()));
             for (i, label) in labels.enumerate() {
                 let row = Rect::from_min_size(
                     pos2(menu.left(), menu.top() + row_h * i as f32),

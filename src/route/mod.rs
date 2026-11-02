@@ -184,7 +184,7 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
         };
         let target = profile
             .lud16()
-            .ok_or(anyhow!("No lightning address found"))?;
+            .ok_or(anyhow!("{}", crate::i18n::t("error.no_lightning_address")))?;
 
         let addr = LightningAddress::new(target)?;
         match self.fetch(&addr.lnurlp_url()) {
@@ -193,7 +193,7 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
                     let rsp: PayResponse = serde_json::from_slice(&r.bytes)?;
                     Ok(Poll::Ready(rsp))
                 } else {
-                    bail!("Invalid response code {}", r.status);
+                    bail!("{}", crate::i18n::tf("error.response_code", &[("code", &r.status.to_string())]));
                 }
             }
             Poll::Ready(Err(e)) => Err(anyhow!("{}", e)),

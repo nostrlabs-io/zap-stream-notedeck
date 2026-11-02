@@ -54,8 +54,8 @@ impl StreamPage {
             paint_state_card(
                 ui,
                 rect,
-                "Unsupported stream",
-                "This stream uses MoQ, which this app cannot play yet",
+                crate::i18n::t("stream.unsupported"),
+                crate::i18n::t("stream.unsupported_detail"),
             );
             return;
         }
@@ -83,20 +83,20 @@ impl StreamPage {
                 self.player = None;
                 let now = now_secs();
                 let detail = match event.starts().checked_sub(now) {
-                    Some(left) if left > 0 => format!("Starts in {}", format_countdown(left)),
-                    _ => "Starting soon".to_string(),
+                    Some(left) if left > 0 => crate::i18n::tf("stream.starts_in", &[("time", &format_countdown(left))]),
+                    _ => crate::i18n::t("stream.starting_soon").to_string(),
                 };
-                paint_state_card(ui, rect, "Stream not started", &detail);
+                paint_state_card(ui, rect, crate::i18n::t("stream.not_started"), &detail);
                 ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
             }
             Playback::Offline => {
                 self.player = None;
                 let title = if event.status() == StreamStatus::Ended {
-                    "Stream ended"
+                    crate::i18n::t("stream.ended")
                 } else {
-                    "Stream offline"
+                    crate::i18n::t("stream.offline")
                 };
-                paint_state_card(ui, rect, title, "Check back later");
+                paint_state_card(ui, rect, title, crate::i18n::t("stream.check_back"));
             }
         }
     }
@@ -158,7 +158,7 @@ impl StreamPage {
                                 |ui| c.render(ui, services),
                             );
                         } else {
-                            ui.label("Loading..");
+                            ui.label(crate::i18n::t("common.loading"));
                         }
                         {
                             let (emoji, disabled) = self
@@ -211,7 +211,7 @@ impl StreamPage {
                     },
                 );
             } else {
-                ui.label("Loading..");
+                ui.label(crate::i18n::t("common.loading"));
             }
             {
                             let (emoji, disabled) = self
@@ -290,7 +290,7 @@ impl NostrWidget for StreamPage {
                 self.render_desktop(event, ui, services)
             }
         } else {
-            ui.label("Loading..")
+            ui.label(crate::i18n::t("common.loading"))
         }
     }
 

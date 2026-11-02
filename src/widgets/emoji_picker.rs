@@ -27,7 +27,7 @@ pub fn show(
         .show(ui, |ui| {
             ui.set_width(300.0);
             if !custom.is_empty() {
-                ui.label(crate::theme::semibold("Custom", 13.0));
+                ui.label(crate::theme::semibold(crate::i18n::t("emoji.custom"), 13.0));
                 ui.horizontal_wrapped(|ui| {
                     for (name, url) in custom {
                         let size = vec2(26.0, 26.0);
@@ -52,7 +52,7 @@ pub fn show(
                     }
                 });
                 ui.add_space(6.0);
-                ui.label(crate::theme::semibold("Emoji", 13.0));
+                ui.label(crate::theme::semibold(crate::i18n::t("emoji.emoji"), 13.0));
             }
             ui.horizontal_wrapped(|ui| {
                 for e in STANDARD {

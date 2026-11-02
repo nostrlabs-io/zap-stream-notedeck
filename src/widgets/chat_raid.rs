@@ -48,16 +48,16 @@ pub fn show(
             ui.set_width(ui.available_width());
             ui.with_layout(Layout::top_down(Align::Center), |ui| {
                 let label = if raiding {
-                    format!("RAIDING {}", name)
+                    crate::i18n::tf("chat.raiding", &[("name", &name)])
                 } else {
-                    format!("RAID FROM {}", name)
+                    crate::i18n::tf("chat.raid_from", &[("name", &name)])
                 };
                 ui.label(RichText::new(label).strong().color(ON_PRIMARY));
                 if let Some(start) = *started {
                     let left = AUTO_RAID_DELAY - (now - start);
                     if left > 0.0 {
                         ui.label(
-                            RichText::new(format!("Raiding in {}s", left.ceil() as u32))
+                            RichText::new(crate::i18n::tf("chat.raiding_in", &[("n", &(left.ceil() as u32).to_string())]))
                                 .color(ON_PRIMARY),
                         );
                         ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
@@ -67,7 +67,7 @@ pub fn show(
                     }
                 }
                 if let Some(l) = link {
-                    if ui.button("Open stream").clicked() {
+                    if ui.button(crate::i18n::t("chat.open_stream")).clicked() {
                         *started = None;
                         services.navigate(RouteType::EventPage { link: l, event: None });
                     }

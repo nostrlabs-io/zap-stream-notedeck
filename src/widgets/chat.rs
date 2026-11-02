@@ -208,7 +208,7 @@ impl Chat {
                     state.picker = !state.picker;
                     state.timeouts = false;
                 }
-                if is_moderator && ui.button("Timeout").clicked() {
+                if is_moderator && ui.button(crate::i18n::t("chat.timeout")).clicked() {
                     state.timeouts = !state.timeouts;
                     state.picker = false;
                 }

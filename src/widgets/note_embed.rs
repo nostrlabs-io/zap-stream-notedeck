@@ -6,9 +6,9 @@ use egui::{Frame, Id, Margin, RichText, Sense, Ui};
 
 fn heading(kind: u32, name: &str) -> String {
     match kind {
-        30_023 => format!("Article by {}", name),
-        30_311 => format!("Live stream by {}", name),
-        _ => format!("Note by {}", name),
+        30_023 => crate::i18n::tf("embed.article", &[("name", &name)]),
+        30_311 => crate::i18n::tf("embed.live", &[("name", &name)]),
+        _ => crate::i18n::tf("embed.note", &[("name", &name)]),
     }
 }
 

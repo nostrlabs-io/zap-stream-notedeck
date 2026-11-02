@@ -121,35 +121,35 @@ impl SettingsPage {
     }
 
     fn menu(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
-        Self::title(ui, "Settings");
-        if Self::row(ui, "Profile", "Name, picture, about and lightning address") {
+        Self::title(ui, crate::i18n::t("button.settings"));
+        if Self::row(ui, crate::i18n::t("button.profile"), crate::i18n::t("settings.profile_desc")) {
             services.navigate(RouteType::SettingsPage {
                 section: SettingsSection::Profile,
             });
         }
-        if Self::row(ui, "Wallet", "Connect a wallet to pay zaps") {
+        if Self::row(ui, crate::i18n::t("settings.wallet"), crate::i18n::t("settings.wallet_desc")) {
             services.navigate(RouteType::SettingsPage {
                 section: SettingsSection::Wallet,
             });
         }
-        if Self::row(ui, "Relays", "Where your events are published") {
+        if Self::row(ui, crate::i18n::t("settings.relays"), crate::i18n::t("settings.relays_desc")) {
             services.navigate(RouteType::SettingsPage {
                 section: SettingsSection::Relays,
             });
         }
-        if Self::row(ui, "Go live", "Stream settings, server URL and stream key") {
+        if Self::row(ui, crate::i18n::t("settings.go_live"), crate::i18n::t("settings.go_live_desc")) {
             services.navigate(RouteType::SettingsPage {
                 section: SettingsSection::Broadcast,
             });
         }
-        if Self::row(ui, "Logout", "Remove this account from the app") {
+        if Self::row(ui, crate::i18n::t("button.logout"), crate::i18n::t("settings.logout_desc")) {
             let me = services.ctx.accounts.get_selected_account().key.pubkey;
             services.action(RouteAction::Logout(me));
         }
     }
 
     fn back(ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
-        if Button::new().text(ui, "Back").clicked() {
+        if Button::new().text(ui, crate::i18n::t("button.back")).clicked() {
             services.navigate(RouteType::SettingsPage {
                 section: SettingsSection::Menu,
             });
@@ -163,7 +163,7 @@ impl SettingsPage {
         match rx.try_recv() {
             Ok(Ok(url)) => {
                 self.form.picture = url;
-                self.status = Some(Ok("Picture uploaded, press Save to publish".to_string()));
+                self.status = Some(Ok(crate::i18n::t("settings.picture_uploaded").to_string()));
                 self.upload = None;
             }
             Ok(Err(e)) => {
@@ -190,7 +190,7 @@ impl SettingsPage {
                 .pick_file()
                 .await;
             let Some(file) = picked else {
-                let _ = tx.send(Err("No file selected".to_string()));
+                let _ = tx.send(Err(crate::i18n::t("settings.no_file").to_string()));
                 ctx.request_repaint();
                 return;
             };
@@ -220,12 +220,12 @@ impl SettingsPage {
 
     #[cfg(target_os = "android")]
     fn start_upload(&mut self, _services: &RouteServices<'_, '_>) {
-        self.status = Some(Err("Picture upload is not available on this device".to_string()));
+        self.status = Some(Err(crate::i18n::t("settings.upload_unavailable").to_string()));
     }
 
     fn profile(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
         Self::back(ui, services);
-        Self::title(ui, "Edit profile");
+        Self::title(ui, crate::i18n::t("settings.edit_profile"));
         if !Self::signed_in(services) {
             ui.label(theme::medium("Log in with a private key to edit your profile", 15.0).color(theme::MUTED));
             return;
@@ -238,21 +238,21 @@ impl SettingsPage {
                 .render(ui, services.ctx);
             ui.vertical(|ui| {
                 let uploading = self.upload.is_some();
-                let label = if uploading { "Uploading..." } else { "Upload picture" };
+                let label = if uploading { crate::i18n::t("settings.uploading") } else { crate::i18n::t("settings.upload_picture") };
                 if Button::new().disabled(uploading).text(ui, label).clicked() && !uploading {
                     self.start_upload(services);
                 }
             });
         });
-        Self::label(ui, "Picture URL");
+        Self::label(ui, crate::i18n::t("profile.picture_url"));
         Self::field(ui, &mut self.form.picture, "https://", true);
-        Self::label(ui, "Display name");
+        Self::label(ui, crate::i18n::t("profile.display_name"));
         Self::field(ui, &mut self.form.name, "Satoshi", false);
-        Self::label(ui, "About");
-        Self::field(ui, &mut self.form.about, "Tell viewers about you", false);
+        Self::label(ui, crate::i18n::t("profile.about"));
+        Self::field(ui, &mut self.form.about, crate::i18n::t("profile.about_hint"), false);
         Self::label(ui, "NIP-05");
         Self::field(ui, &mut self.form.nip05, "you@domain.com", false);
-        Self::label(ui, "Lightning address");
+        Self::label(ui, crate::i18n::t("profile.lightning_address"));
         Self::field(ui, &mut self.form.lud16, "you@wallet.com", true);
         self.status_line(ui);
         let ready = self.seeded || self.started.elapsed() > PROFILE_WAIT;
@@ -261,7 +261,7 @@ impl SettingsPage {
             .radius(255)
             .full_width()
             .disabled(!ready)
-            .text(ui, "Save")
+            .text(ui, crate::i18n::t("button.save"))
             .clicked();
         if clicked && ready {
             self.save_profile(services, me);
@@ -280,7 +280,7 @@ impl SettingsPage {
             Ok(ev) => {
                 services.broadcast_event(ev);
                 self.existing = content;
-                self.status = Some(Ok("Profile saved".to_string()));
+                self.status = Some(Ok(crate::i18n::t("settings.profile_saved").to_string()));
             }
             Err(e) => self.status = Some(Err(e.to_string())),
         }
@@ -308,7 +308,7 @@ impl SettingsPage {
 
     fn wallet(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
         Self::back(ui, services);
-        Self::title(ui, "Wallet");
+        Self::title(ui, crate::i18n::t("settings.wallet"));
         if !Self::signed_in(services) {
             ui.label(theme::medium("Log in with a private key to connect a wallet", 15.0).color(theme::MUTED));
             return;
@@ -322,12 +322,12 @@ impl SettingsPage {
                     .get_selected_wallet_mut()
                     .and_then(|w| w.wallet.get_balance())
                     .map(|b| b.as_ref().map(|v| *v).map_err(|e| e.to_string()));
-                Self::label(ui, "Connected wallet");
+                Self::label(ui, crate::i18n::t("settings.connected_wallet"));
                 ui.label(RichText::new(mask_uri(&uri)).monospace().size(14.0).color(theme::TEXT));
                 match balance {
                     Some(Ok(msats)) => {
                         ui.label(theme::display(
-                            format!("{} sats", crate::zap::format_sats((msats / 1000) as f32)),
+                            crate::i18n::tf("common.sats_amount", &[("n", &crate::zap::format_sats((msats / 1000) as f32))]),
                             30.0,
                         ).color(theme::PRIMARY));
                     }
@@ -335,17 +335,17 @@ impl SettingsPage {
                         ui.label(RichText::new(e).color(ERROR));
                     }
                     None => {
-                        ui.label(theme::medium("Loading balance...", 14.0).color(theme::MUTED));
+                        ui.label(theme::medium(crate::i18n::t("settings.loading_balance"), 14.0).color(theme::MUTED));
                         ui.ctx().request_repaint_after(Duration::from_millis(500));
                     }
                 }
-                if Button::new().text(ui, "Disconnect wallet").clicked() {
+                if Button::new().text(ui, crate::i18n::t("settings.disconnect_wallet")).clicked() {
                     services.ctx.accounts.update_current_account(|a| a.wallet = None);
                     self.status = None;
                 }
             }
             None => {
-                Self::body(ui, "Paste a Nostr Wallet Connect string to pay zaps from this app.");
+                Self::body(ui, crate::i18n::t("settings.wallet_paste"));
                 Self::label(ui, "nostr+walletconnect://");
                 Self::field(ui, &mut self.wallet_uri, "nostr+walletconnect://...", true);
                 self.status_line(ui);
@@ -355,7 +355,7 @@ impl SettingsPage {
                     .radius(255)
                     .full_width()
                     .disabled(!enabled)
-                    .text(ui, "Connect")
+                    .text(ui, crate::i18n::t("button.connect"))
                     .clicked();
                 if clicked && enabled {
                     match Wallet::new(self.wallet_uri.trim().to_string()) {
@@ -397,15 +397,15 @@ impl SettingsPage {
 
     fn relays(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
         Self::back(ui, services);
-        Self::title(ui, "Relays");
+        Self::title(ui, crate::i18n::t("settings.relays"));
         if !Self::signed_in(services) {
-            ui.label(theme::medium("Log in with a private key to edit your relays", 15.0).color(theme::MUTED));
+            ui.label(theme::medium(crate::i18n::t("settings.relays_login"), 15.0).color(theme::MUTED));
             return;
         }
         let tags = Self::own_note_tags(services, 10_002);
         let current = crate::relay_list::relays(&tags);
         if current.is_empty() {
-            Self::body(ui, "No relay list published yet. These defaults are used:");
+            Self::body(ui, crate::i18n::t("settings.relays_default"));
             for r in crate::relays::DEFAULT_RELAYS {
                 ui.label(RichText::new(*r).monospace().size(14.0).color(theme::MUTED));
             }
@@ -415,7 +415,7 @@ impl SettingsPage {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(r).monospace().size(14.0).color(theme::TEXT));
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if Button::new().text(ui, "Remove").clicked() {
+                    if Button::new().text(ui, crate::i18n::t("button.remove")).clicked() {
                         remove = Some(r.clone());
                     }
                 });
@@ -426,11 +426,11 @@ impl SettingsPage {
             self.publish_relays(services, next);
             return;
         }
-        Self::label(ui, "Add relay");
+        Self::label(ui, crate::i18n::t("settings.add_relay"));
         Self::field(ui, &mut self.relay_input, "wss://relay.example.com", true);
         self.status_line(ui);
         let valid = crate::relay_list::normalize(&self.relay_input).is_some();
-        if Button::primary().disabled(!valid).text(ui, "Add").clicked() {
+        if Button::primary().disabled(!valid).text(ui, crate::i18n::t("button.add")).clicked() {
             if valid {
                 let base = if current.is_empty() {
                     crate::relays::DEFAULT_RELAYS

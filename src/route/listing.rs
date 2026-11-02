@@ -26,7 +26,23 @@ pub fn category_name(tag: &str) -> Option<&'static str> {
     CATEGORIES
         .iter()
         .find(|(t, _)| t.eq_ignore_ascii_case(tag))
-        .map(|(_, n)| *n)
+        .map(|(t, n)| category_label(t, n))
+}
+
+fn category_label(tag: &'static str, fallback: &'static str) -> &'static str {
+    match tag {
+        "irl" => crate::i18n::t("home.tab.irl"),
+        "gaming" => crate::i18n::t("home.tab.gaming"),
+        "music" => crate::i18n::t("home.tab.music"),
+        "talk" => crate::i18n::t("home.tab.talk"),
+        "art" => crate::i18n::t("home.tab.art"),
+        "gambling" => crate::i18n::t("home.tab.gambling"),
+        "science" => crate::i18n::t("home.tab.science"),
+        "news" => crate::i18n::t("category.news"),
+        "sports" => crate::i18n::t("category.sports"),
+        "education" => crate::i18n::t("category.education"),
+        _ => fallback,
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -42,8 +58,8 @@ impl Listing {
         match self {
             Listing::Category(c) => category_name(c).map(str::to_string).unwrap_or(c.clone()),
             Listing::Hashtag(t) => format!("#{}", t),
-            Listing::Videos => "Videos".to_string(),
-            Listing::Shorts => "Shorts".to_string(),
+            Listing::Videos => crate::i18n::t("nav.videos").to_string(),
+            Listing::Shorts => crate::i18n::t("nav.shorts").to_string(),
         }
     }
 
@@ -173,7 +189,7 @@ impl NostrWidget for CategoriesPage {
                     .inner_margin(Margin::symmetric(if wide { 0 } else { 16 }, 16))
                     .show(ui, |ui| {
                         ui.spacing_mut().item_spacing = egui::vec2(16.0, 16.0);
-                        ui.label(theme::display("Categories", if wide { 40.0 } else { 30.0 }));
+                        ui.label(theme::display(crate::i18n::t("nav.categories"), if wide { 40.0 } else { 30.0 }));
                         let cols = if ui.available_width() < 560.0 { 2 } else { 4 };
                         let w = (ui.available_width() - 16.0 * (cols - 1) as f32) / cols as f32;
                         for (row, chunk) in CATEGORIES.chunks(cols).enumerate() {
@@ -189,8 +205,8 @@ impl NostrWidget for CategoriesPage {
                                             ui.set_max_width(w - 32.0);
                                             ui.set_height(56.0);
                                             ui.vertical(|ui| {
-                                                ui.label(theme::display(*name, 20.0).color(TEXT));
-                                                let noun = if count == 1 { "stream" } else { "streams" };
+                                                ui.label(theme::display(category_label(tag, name), 20.0).color(TEXT));
+                                                let noun = if count == 1 { crate::i18n::t("listing.stream_one") } else { crate::i18n::t("listing.stream_many") };
                                                 ui.label(
                                                     theme::medium(format!("{} {}", count, noun), 14.0)
                                                         .color(MUTED),
