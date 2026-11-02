@@ -5,6 +5,7 @@ TARGET=${TARGET:-aarch64-apple-ios-sim}
 BUNDLE_ID=${BUNDLE_ID:-io.nostrlabs.zap-stream}
 PROFILE=${PROFILE:-release}
 APP=target/ios/ZapStream.app
+export IPHONEOS_DEPLOYMENT_TARGET=15.0
 cargo build --profile "$PROFILE" --bin zap_stream_app --target "$TARGET"
 rm -rf "$APP"
 mkdir -p "$APP"
