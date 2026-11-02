@@ -66,12 +66,12 @@ impl Header {
         tx: &Transaction,
     ) -> Response {
         let wide = ui.available_width() >= theme::WIDE_BREAKPOINT;
-        let top = crate::android_window::top_band_points(ui.ctx().pixels_per_point());
+        let plan = crate::android_window::header_top(ui.ctx().pixels_per_point(), ui.available_width());
         let r = Frame::new()
             .inner_margin(Margin {
-                left: 16,
-                right: 16,
-                top: top.round().clamp(0.0, 127.0) as i8,
+                left: (16.0 + plan.left).round().clamp(0.0, 127.0) as i8,
+                right: (16.0 + plan.right).round().clamp(0.0, 127.0) as i8,
+                top: plan.top.round().clamp(0.0, 127.0) as i8,
                 bottom: 0,
             })
             .show(ui, |ui| {

@@ -250,6 +250,39 @@ pub fn top_band_points(pixels_per_point: f32) -> f32 {
     top_band_px() as f32 / pixels_per_point.max(1.0)
 }
 
+const LEFT_CLUSTER_PT: f32 = 64.0;
+const RIGHT_CLUSTER_PT: f32 = 110.0;
+const LOGO_WIDTH_PT: f32 = 150.0;
+const ACTIONS_WIDTH_PT: f32 = 200.0;
+
+#[derive(Debug, PartialEq, Clone, Copy)]
+pub struct HeaderTop {
+    pub top: f32,
+    pub left: f32,
+    pub right: f32,
+}
+
+pub fn header_top(pixels_per_point: f32, width_pt: f32) -> HeaderTop {
+    plan_header_top(top_band_px(), &cutout_rects(), pixels_per_point, width_pt)
+}
+
+fn plan_header_top(band_px: i32, rects: &[[i32; 3]], pixels_per_point: f32, width_pt: f32) -> HeaderTop {
+    let ppp = pixels_per_point.max(1.0);
+    let band = band_px as f32 / ppp;
+    let below = HeaderTop { top: band, left: 0.0, right: 0.0 };
+    if band_px <= 0 || rects.is_empty() {
+        return below;
+    }
+    let fits = rects.iter().all(|r| {
+        let (left, right) = (r[0] as f32 / ppp, r[1] as f32 / ppp);
+        left - LEFT_CLUSTER_PT >= LOGO_WIDTH_PT && width_pt - RIGHT_CLUSTER_PT - right >= ACTIONS_WIDTH_PT
+    });
+    if !fits {
+        return below;
+    }
+    HeaderTop { top: 0.0, left: LEFT_CLUSTER_PT, right: RIGHT_CLUSTER_PT }
+}
+
 pub fn cutout_rects() -> Vec<[i32; 3]> {
     CUTOUT_RECTS.lock().unwrap().clone()
 }
@@ -279,5 +312,18 @@ mod tests {
         assert_eq!(cutout_rects(), vec![[500, 580, 90]]);
         set_top_insets(0, &[]);
         assert_eq!(top_band_px(), 0);
+    }
+
+    #[test]
+    fn header_shares_status_row_only_when_both_sides_fit() {
+        let centered = [[1000, 1080, 90]];
+        let at_left = [[0, 136, 136]];
+        let wide = plan_header_top(136, &centered, 2.625, 900.0);
+        assert_eq!(wide.top, 0.0);
+        let narrow = plan_header_top(136, &[[500, 580, 90]], 2.625, 411.0);
+        assert_eq!(narrow.top, 136.0 / 2.625);
+        assert_eq!(plan_header_top(136, &at_left, 2.625, 900.0).top, 136.0 / 2.625);
+        assert_eq!(plan_header_top(0, &[], 2.625, 411.0).top, 0.0);
+        assert_eq!(plan_header_top(136, &[], 2.625, 900.0).top, 136.0 / 2.625);
     }
 }
