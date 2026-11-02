@@ -1,5 +1,4 @@
 use crate::note_util::NoteUtil;
-use anyhow::{anyhow, bail, Result};
 use fixed_decimal::FixedDecimal;
 use icu::decimal::FixedDecimalFormatter;
 use icu::locid::Locale;
@@ -14,24 +13,20 @@ pub struct Zap<'a> {
     pub message: String,
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub struct NotAZap;
+
 impl<'a> Zap<'a> {
-    pub fn from_receipt(event: Note<'a>) -> Result<Zap> {
+    pub fn from_receipt(event: Note<'a>) -> Result<Zap<'a>, NotAZap> {
         if event.kind() != 9735 {
-            bail!("not a zap receipt");
+            return Err(NotAZap);
         }
 
-        let req_json = event
-            .get_tag_value("description")
-            .ok_or(anyhow!("missing description"))?;
-        let req = Event::from_json(
-            req_json
-                .variant()
-                .str()
-                .ok_or(anyhow!("empty description"))?,
-        )?;
+        let req_json = event.get_tag_value("description").ok_or(NotAZap)?;
+        let req = Event::from_json(req_json.variant().str().ok_or(NotAZap)?).map_err(|_| NotAZap)?;
 
         if req.kind != Kind::ZapRequest {
-            bail!("not a zap request");
+            return Err(NotAZap);
         }
 
         let dest = req
@@ -41,7 +36,7 @@ impl<'a> Zap<'a> {
                 Some(TagStandard::PublicKey { public_key, .. }) => Some(public_key.to_bytes()),
                 _ => None,
             })
-            .ok_or(anyhow!("missing p tag in zap request"))?;
+            .ok_or(NotAZap)?;
 
         let amount = req.tags.iter().find_map(|t| match t.as_standardized() {
             Some(TagStandard::Amount { millisats, .. }) => Some(*millisats),
@@ -83,7 +78,7 @@ pub fn top_senders(zaps: &[Zap<'_>], limit: usize) -> Vec<([u8; 32], u64)> {
     list
 }
 
-pub const SENDER_TOTALS_BATCH: usize = 24;
+pub const SENDER_TOTALS_BATCH: usize = 6;
 
 #[derive(Default)]
 pub struct SenderTotals<K: std::hash::Hash + Eq + Copy> {

@@ -30,7 +30,11 @@ impl NoteUtil for Note<'_> {
     }
 
     fn get_tag_value(&self, key: &str) -> Option<NdbStr> {
-        self.find_tag_value(|t| t[0].variant().str() == Some(key))
+        let tag = self
+            .tags()
+            .iter()
+            .find(|t| t.get(0).is_some_and(|k| k.variant().str() == Some(key)))?;
+        tag.get(1)
     }
 
     fn find_tag_value<F>(&self, fx: F) -> Option<NdbStr>

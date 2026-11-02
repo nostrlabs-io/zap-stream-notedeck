@@ -34,6 +34,10 @@ fn debug_modal(id: &[u8; 32], author: &[u8; 32], content: &str) -> Option<ModalS
     Some(ModalState { id: *id, author: *author, content: content.to_string(), picker, timeouts })
 }
 
+fn build_stamp(events: usize, aux: usize, now: u64, time_independent: bool) -> (usize, usize, u64) {
+    (events, aux, if time_independent { 0 } else { now / 10 })
+}
+
 pub struct Chat {
     link: NostrLink,
     stream: Option<NoteKey>,
@@ -185,14 +189,16 @@ impl Chat {
                     }
                 }
             }
-            RowKind::Zap => {
-                let Ok(ev) = services.ctx.ndb.get_note_by_key(services.tx, row.key) else {
-                    return;
+            RowKind::Zap { sender, sats, message } => {
+                let profile = services.profile(sender);
+                let zap = Zap {
+                    sender: *sender,
+                    receiver: [0; 32],
+                    zapper_service: &[0; 32],
+                    amount: *sats,
+                    message: message.clone(),
                 };
-                if let Ok(zap) = Zap::from_receipt(ev) {
-                    let profile = services.profile(&zap.sender);
-                    ChatZap::new(&zap, &profile).render(ui, services.ctx);
-                }
+                ChatZap::new(&zap, &profile).render(ui, services.ctx);
             }
             RowKind::Raid { raid, created_at } => {
                 let started = self.raid_started.entry(row.key).or_insert(None);
@@ -396,7 +402,7 @@ impl NostrWidget for Chat {
         }
 
         let now = nostr::Timestamp::now().as_u64();
-        let stamp = (self.events.len(), self.aux.len(), now / 10);
+        let stamp = build_stamp(self.events.len(), self.aux.len(), now, self.data.muted.is_empty());
         if stamp != self.built_for {
             self.built_for = stamp;
             let data = chat_data::build(
@@ -432,7 +438,13 @@ impl NostrWidget for Chat {
 
 #[cfg(test)]
 mod tests {
-    use super::debug_modal_flags;
+    use super::{build_stamp, debug_modal_flags};
+
+    #[test]
+    fn build_stamp_ignores_time_without_mutes() {
+        assert_eq!(build_stamp(5, 2, 1000, true), build_stamp(5, 2, 5000, true));
+        assert_ne!(build_stamp(5, 2, 1000, false), build_stamp(5, 2, 5000, false));
+    }
 
     #[test]
     fn debug_modal_flags_select_panel() {

@@ -17,7 +17,11 @@ pub enum RowKind {
         segments: Vec<Segment>,
         content: String,
     },
-    Zap,
+    Zap {
+        sender: Pubkey,
+        sats: u64,
+        message: String,
+    },
     Raid {
         raid: Raid,
         created_at: u64,
@@ -80,7 +84,7 @@ impl Want {
 
 #[derive(Default)]
 pub struct ChatData {
-    pub rows: Vec<Row>,
+    pub rows: Vec<std::sync::Arc<Row>>,
     pub reactions: HashMap<[u8; 32], Vec<ReactionCount>>,
     pub zapped: HashMap<[u8; 32], u64>,
     pub badges_of: HashMap<Pubkey, Vec<String>>,
@@ -286,7 +290,7 @@ pub fn build(input: &BuildInput, parsed: &mut Parsed) -> ChatData {
                         _ => {}
                     }
                 }
-                data.rows.push(Row {
+                data.rows.push(std::sync::Arc::new(Row {
                     key,
                     created_at,
                     id,
@@ -296,7 +300,7 @@ pub fn build(input: &BuildInput, parsed: &mut Parsed) -> ChatData {
                         segments,
                         content,
                     },
-                });
+                }));
             }
             9735 => {
                 let Ok(note) = input.ndb.get_note_by_key(input.tx, key) else {
@@ -308,7 +312,7 @@ pub fn build(input: &BuildInput, parsed: &mut Parsed) -> ChatData {
                 if !is_visible(&zap.sender, &moderators, &data.muted) {
                     continue;
                 }
-                data.rows.push(Row { key, created_at, id, kind: RowKind::Zap });
+                data.rows.push(std::sync::Arc::new(Row { key, created_at, id, kind: RowKind::Zap { sender: zap.sender, sats: zap.amount, message: zap.message.clone() } }));
             }
             1312 => {
                 if let Some(raid) = parse_raid(&tags) {
@@ -317,12 +321,12 @@ pub fn build(input: &BuildInput, parsed: &mut Parsed) -> ChatData {
                             data.wants.push(Want::Coordinate(k, pk, d));
                         }
                     }
-                    data.rows.push(Row {
+                    data.rows.push(std::sync::Arc::new(Row {
                         key,
                         created_at,
                         id,
                         kind: RowKind::Raid { raid, created_at },
-                    });
+                    }));
                 }
             }
             _ => {}
@@ -331,7 +335,7 @@ pub fn build(input: &BuildInput, parsed: &mut Parsed) -> ChatData {
 
     for (key, id, t) in timeouts {
         if moderators.contains(&t.author) && t.active(input.now) {
-            data.rows.push(Row { key, created_at: t.created_at, id, kind: RowKind::Timeout(t) });
+            data.rows.push(std::sync::Arc::new(Row { key, created_at: t.created_at, id, kind: RowKind::Timeout(t) }));
         }
     }
 
@@ -342,12 +346,12 @@ pub fn build(input: &BuildInput, parsed: &mut Parsed) -> ChatData {
                 list.push(badge.clone());
             }
         }
-        data.rows.push(Row {
+        data.rows.push(std::sync::Arc::new(Row {
             key,
             created_at,
             id,
             kind: RowKind::BadgeAward { badge, users },
-        });
+        }));
     }
 
     data.rows

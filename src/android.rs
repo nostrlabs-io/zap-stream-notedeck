@@ -3,7 +3,6 @@ use android_activity::AndroidApp;
 use notedeck::Notedeck;
 
 pub fn start_android(app: AndroidApp) {
-    std::env::set_var("RUST_BACKTRACE", "full");
     android_logger::init_once(
         android_logger::Config::default()
             .with_tag("zapstream")
