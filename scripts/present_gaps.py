@@ -154,6 +154,125 @@ def locate(path, args):
     print("still saved to", out)
 
 
+TRACE_CONFIG = """
+buffers { size_kb: 32768 fill_policy: RING_BUFFER }
+data_sources { config { name: "android.surfaceflinger.frametimeline" } }
+duration_ms: %d
+"""
+
+
+def cmd_trace(args):
+    remote = "/data/misc/perfetto-traces/present_gaps.pftrace"
+    local = args.keep or tempfile.mktemp(suffix=".pftrace")
+    cfg = TRACE_CONFIG % (args.secs * 1000)
+    print(f"tracing frametimeline for {args.secs}s")
+    subprocess.run(
+        [ADB_BIN, "-s", args.serial, "shell", "perfetto", "-c", "-", "--txt", "-o", remote],
+        input=cfg, text=True, check=False, capture_output=True,
+    )
+    subprocess.run([ADB_BIN, "-s", args.serial, "pull", remote, local], check=True, capture_output=True)
+    adb(["shell", "rm", remote], args.serial)
+    analyse_trace(local, args)
+
+
+def analyse_trace(path, args):
+    from perfetto.trace_processor import TraceProcessor
+
+    tp = TraceProcessor(trace=path)
+    rows = list(tp.query(
+        "select layer_name, ts, dur, present_type, jank_type, on_time_finish from actual_frame_timeline_slice "
+        "where layer_name is not null"
+    ))
+    layers = {}
+    for r in rows:
+        layers.setdefault(r.layer_name, []).append(r)
+    print("layers with presented frames:")
+    for name, v in sorted(layers.items(), key=lambda kv: -len(kv[1])):
+        print(f"  {len(v):6d} {name}")
+    want = [n for n in layers if args.layer and args.layer in n] or [n for n in layers if args.package in n]
+    if not want:
+        sys.exit("no matching layer, pass --layer with a substring of one above")
+    name = sorted(want, key=lambda n: -len(layers[n]))[0] if not args.layer else want[0]
+    v = sorted(layers[name], key=lambda r: r.ts)
+    print("using layer:", name)
+    presents = [r.ts + r.dur for r in v if r.present_type != "Dropped Frame"]
+    iv = [(b - a) / 1e6 for a, b in zip(presents, presents[1:])]
+    histogram(iv, "SF present-to-present intervals", args.source_ms, args.vsync_ms)
+    jank = {}
+    for r in v:
+        jank[r.jank_type] = jank.get(r.jank_type, 0) + 1
+    print("jank types:", jank)
+
+
+def strip_frames(path, crop, scale):
+    cx, cy, cw, ch = [int(v) for v in crop.split(":")]
+    pts = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "frame=pts_time", "-of", "csv=p=0", path],
+        capture_output=True, text=True,
+    ).stdout.split()
+    times = [float(t.strip(",")) for t in pts if t.strip(",") not in ("", "N/A")]
+    gw, gh = cw * scale, ch * scale
+    raw = subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", path, "-vf", f"crop={cw}:{ch}:{cx}:{cy},scale={gw}:{gh}:flags=bicubic,format=gray", "-fps_mode", "passthrough", "-f", "rawvideo", "-"],
+        capture_output=True,
+    ).stdout
+    frames = np.frombuffer(raw, dtype=np.uint8).reshape(-1, gh, gw).astype(np.float32)
+    n = min(len(frames), len(times))
+    return frames[:n], times[:n]
+
+
+def phase_shift(a, b):
+    win = np.hanning(a.shape[1])[None, :] * np.hanning(a.shape[0])[:, None]
+    fa = np.fft.fft2((a - a.mean()) * win)
+    fb = np.fft.fft2((b - b.mean()) * win)
+    r = fa * np.conj(fb)
+    r /= np.abs(r) + 1e-9
+    c = np.real(np.fft.ifft2(r))
+    prof = c.max(axis=0)
+    x = int(np.argmax(prof))
+    l, m, r = prof[x - 1], prof[x], prof[(x + 1) % len(prof)]
+    den = l - 2 * m + r
+    sub = 0.5 * (l - r) / den if den != 0 else 0.0
+    xf = x + sub
+    if xf > a.shape[1] / 2:
+        xf -= a.shape[1]
+    return -xf, m
+
+
+def ticker_track(path, args):
+    frames, times = strip_frames(path, args.crop or "62:338:135:16", 2)
+    ref, ref_pos = frames[0], 0.0
+    track = [(times[0], 0.0, 1.0)]
+    last = frames[0]
+    for i in range(1, len(frames)):
+        if np.abs(frames[i] - last).mean() < args.threshold:
+            continue
+        last = frames[i]
+        dx, conf = phase_shift(ref, frames[i])
+        pos = ref_pos + dx / 2
+        track.append((times[i], pos, conf))
+        if abs(dx / 2) > 12:
+            ref, ref_pos = frames[i], pos
+    return track
+
+
+def backward(path, args):
+    track = [t for t in ticker_track(path, args) if t[2] > args.min_conf]
+    if len(track) < 10:
+        print("no ticker motion found, check --crop")
+        return
+    span = track[-1][1] - track[0][1]
+    dom = 1.0 if span > 0 else -1.0
+    steps = [(b[0], (b[1] - a[1]) * dom) for a, b in zip(track, track[1:])]
+    fwd = [s for s in steps if s[1] > args.min_step]
+    rev = [s for s in steps if s[1] < -args.min_step]
+    dur = track[-1][0] - track[0][0]
+    print(f"tracked {len(track)} strip changes over {dur:.0f}s, ticker moved {abs(span):.0f}px ({abs(span)/dur:.1f}px/s) direction {'+x' if dom > 0 else '-x'}")
+    print(f"forward steps {len(fwd)}, backward steps {len(rev)} ({100*len(rev)/max(len(fwd)+len(rev),1):.1f}%), backward per 30s {30*len(rev)/dur:.1f}")
+    for t, d in rev[:25]:
+        print(f"  t={t:7.3f}s back {-d:.2f}px")
+
+
 def cmd_gfx(args):
     out = adb(["shell", "dumpsys", "gfxinfo", args.package, "framestats"], args.serial)
     rows = []
@@ -174,7 +293,7 @@ def cmd_gfx(args):
 
 def main():
     p = argparse.ArgumentParser(description="Histogram of what reaches the display while a stream plays")
-    p.add_argument("mode", choices=["sf", "rec", "gfx", "video", "locate"])
+    p.add_argument("mode", choices=["sf", "rec", "gfx", "video", "locate", "trace", "tracefile", "backward"])
     p.add_argument("--serial", default=ADB_DEFAULT)
     p.add_argument("--package", default="stream.zap.app")
     p.add_argument("--layer")
@@ -186,6 +305,8 @@ def main():
     p.add_argument("--crop")
     p.add_argument("--threshold", type=float, default=0.15)
     p.add_argument("--out")
+    p.add_argument("--min-step", type=float, default=0.5)
+    p.add_argument("--min-conf", type=float, default=0.3)
     p.add_argument("--keep")
     p.add_argument("--file")
     a = p.parse_args()
@@ -195,6 +316,12 @@ def main():
         cmd_rec(a)
     elif a.mode == "gfx":
         cmd_gfx(a)
+    elif a.mode == "trace":
+        cmd_trace(a)
+    elif a.mode == "tracefile":
+        analyse_trace(a.file, a)
+    elif a.mode == "backward":
+        backward(a.file, a)
     elif a.mode == "locate":
         locate(a.file, a)
     else:

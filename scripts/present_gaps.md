@@ -24,3 +24,7 @@ The default picks a SurfaceView layer if one exists, else the shortest matching 
 `locate --file x.mp4` prints the most active region of a recording as a `--crop x:y:w:h` value.
 
 Screenrecord only emits a frame when the screen changes. An app that redraws at 120Hz is captured at about 120 fps, a player that only updates at the video rate (Flutter, SurfaceView) is captured at about the video rate, so its timestamps are the composition times. Both are valid, use `--keep file.mp4` to save the recording. For a SurfaceView app, `sf` mode on the video layer (name from `dumpsys SurfaceFlinger --list | grep SurfaceView`, pass with `--layer`) is the more exact measure.
+
+`backward --file x.mp4` tracks the NoGood ticker (bottom left of the video, default crop for the 504x1122 recording) by phase correlation against a moving reference and counts steps against the scroll direction. Flutter control recording: 0 per 30s.
+
+`trace` records a perfetto `android.surfaceflinger.frametimeline` trace and histograms present times per layer (needs `pip install perfetto`).
