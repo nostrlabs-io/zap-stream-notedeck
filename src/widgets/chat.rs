@@ -78,6 +78,22 @@ fn build_stamp(events: usize, aux: usize, now: u64, time_independent: bool) -> (
     (events, aux, if time_independent { 0 } else { now / 10 })
 }
 
+fn commit_build(
+    slot: &mut ChatData,
+    wants: &mut Vec<Want>,
+    data: ChatData,
+    subscribe: impl FnOnce(&[Want]) -> anyhow::Result<()>,
+) -> anyhow::Result<()> {
+    let new_wants = data.wants.clone();
+    *slot = data;
+    if new_wants == *wants {
+        return Ok(());
+    }
+    subscribe(&new_wants)?;
+    *wants = new_wants;
+    Ok(())
+}
+
 pub struct Chat {
     link: NostrLink,
     stream: Option<NoteKey>,
@@ -472,20 +488,26 @@ impl NostrWidget for Chat {
                 },
                 &mut self.parsed,
             );
-            if data.wants != self.aux_wants {
-                self.aux_wants = data.wants.clone();
-                self.aux_sub = None;
-                if !self.aux_wants.is_empty() {
-                    let filters: Vec<Filter> = self.aux_wants.iter().map(|w| w.filter()).collect();
-                    let mut sink = HashSet::new();
-                    sub_or_poll(services.ctx, services.tx, &mut sink, &mut self.aux_sub, filters)?;
-                    self.aux.extend(sink);
-                }
-            }
             if !data.rows.is_empty() {
                 self.mark(4, "first_build");
             }
-            self.data = data;
+            let aux_sub = &mut self.aux_sub;
+            let aux = &mut self.aux;
+            let result = commit_build(&mut self.data, &mut self.aux_wants, data, |wants| {
+                *aux_sub = None;
+                if wants.is_empty() {
+                    return Ok(());
+                }
+                let filters: Vec<Filter> = wants.iter().map(|w| w.filter()).collect();
+                let mut sink = HashSet::new();
+                sub_or_poll(services.ctx, services.tx, &mut sink, aux_sub, filters)?;
+                aux.extend(sink);
+                Ok(())
+            });
+            if result.is_err() {
+                self.built_for = (usize::MAX, usize::MAX, 0);
+            }
+            result?;
         }
         Ok(())
     }
@@ -493,7 +515,21 @@ impl NostrWidget for Chat {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_stamp, debug_modal_flags};
+    use super::{build_stamp, commit_build, debug_modal_flags};
+    use crate::chat_data::{ChatData, Want};
+
+    #[test]
+    fn rows_survive_failed_aux_subscription() {
+        let mut slot = ChatData::default();
+        let mut wants = Vec::new();
+        let mut data = ChatData::default();
+        data.muted.insert([1; 32]);
+        data.wants.push(Want::Event([2; 32]));
+        let r = commit_build(&mut slot, &mut wants, data, |_| anyhow::bail!("too many subscriptions"));
+        assert!(r.is_err());
+        assert!(slot.muted.contains(&[1; 32]));
+        assert!(wants.is_empty());
+    }
 
     #[test]
     fn build_stamp_ignores_time_without_mutes() {
