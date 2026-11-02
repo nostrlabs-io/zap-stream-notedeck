@@ -22,6 +22,7 @@ mod profile_edit;
 mod relay_list;
 mod profiles;
 mod route;
+mod safe_area;
 mod stream_info;
 mod sub;
 pub mod theme;
