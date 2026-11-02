@@ -21,6 +21,7 @@ mod note_view;
 mod profile_edit;
 mod relay_list;
 mod profiles;
+mod moderation;
 mod route;
 mod safe_area;
 mod stream_info;

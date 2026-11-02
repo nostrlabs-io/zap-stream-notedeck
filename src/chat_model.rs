@@ -364,4 +364,24 @@ mod tests {
         let got = latest_timeout_for(&[a, b, c], &pk(2), 20).unwrap();
         assert_eq!(got.expiration, Some(200));
     }
+
+    #[test]
+    fn own_block_list_hides_author_from_chat() {
+        let me = pk(1);
+        let host = pk(2);
+        let blocked = pk(7);
+        let mine = MuteList { author: me, created_at: 1, muted: vec![blocked] };
+        let moderators = [host, me];
+        let set = muted_set(&moderators, &[mine], &[], 20);
+        assert!(!is_visible(&blocked, &moderators, &set));
+        assert!(is_visible(&pk(8), &moderators, &set));
+    }
+
+    #[test]
+    fn block_list_of_a_stranger_does_not_hide_anyone() {
+        let moderators = [pk(2), pk(1)];
+        let stranger = MuteList { author: pk(9), created_at: 1, muted: vec![pk(7)] };
+        let set = muted_set(&moderators, &[stranger], &[], 20);
+        assert!(is_visible(&pk(7), &moderators, &set));
+    }
 }
