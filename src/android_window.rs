@@ -227,3 +227,57 @@ pub fn enter_pip() {
 }
 
 pub const PIP_AVAILABLE: bool = cfg!(target_os = "android");
+
+static TOP_INSET_PX: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+static CUTOUT_BOTTOM_PX: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);
+static CUTOUT_RECTS: std::sync::Mutex<Vec<[i32; 3]>> = std::sync::Mutex::new(Vec::new());
+
+pub fn set_top_insets(top: i32, rects: &[i32]) {
+    let rects: Vec<[i32; 3]> = rects.chunks_exact(3).map(|c| [c[0], c[1], c[2]]).collect();
+    let bottom = rects.iter().map(|r| r[2]).max().unwrap_or(0);
+    TOP_INSET_PX.store(top.max(0), std::sync::atomic::Ordering::Relaxed);
+    CUTOUT_BOTTOM_PX.store(bottom, std::sync::atomic::Ordering::Relaxed);
+    *CUTOUT_RECTS.lock().unwrap() = rects;
+}
+
+pub fn top_band_px() -> i32 {
+    TOP_INSET_PX
+        .load(std::sync::atomic::Ordering::Relaxed)
+        .max(CUTOUT_BOTTOM_PX.load(std::sync::atomic::Ordering::Relaxed))
+}
+
+pub fn top_band_points(pixels_per_point: f32) -> f32 {
+    top_band_px() as f32 / pixels_per_point.max(1.0)
+}
+
+pub fn cutout_rects() -> Vec<[i32; 3]> {
+    CUTOUT_RECTS.lock().unwrap().clone()
+}
+
+#[cfg(target_os = "android")]
+#[no_mangle]
+pub extern "system" fn Java_stream_zap_app_MainActivity_nativeSetInsets(
+    env: jni::JNIEnv,
+    _this: jni::objects::JObject,
+    top: jni::sys::jint,
+    rects: jni::objects::JIntArray,
+) {
+    let len = env.get_array_length(&rects).unwrap_or(0) as usize;
+    let mut buf = vec![0i32; len];
+    let _ = env.get_int_array_region(&rects, 0, &mut buf);
+    set_top_insets(top, &buf);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn band_covers_cutout_taller_than_status_bar() {
+        set_top_insets(60, &[500, 580, 90]);
+        assert_eq!(top_band_px(), 90);
+        assert_eq!(cutout_rects(), vec![[500, 580, 90]]);
+        set_top_insets(0, &[]);
+        assert_eq!(top_band_px(), 0);
+    }
+}

@@ -155,10 +155,11 @@ class MainActivity : GameActivity() {
     }
 
     private var insetLeft = 0
-    private var insetTop = 0
+
+    private external fun nativeSetInsets(top: Int, rects: IntArray)
 
     override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
-        ev.offsetLocation(-insetLeft.toFloat(), -insetTop.toFloat())
+        ev.offsetLocation(-insetLeft.toFloat(), 0f)
         return super.dispatchTouchEvent(ev)
     }
 
@@ -171,15 +172,33 @@ class MainActivity : GameActivity() {
                     WindowInsetsCompat.Type.ime()
             )
             val lp = v.layoutParams as ViewGroup.MarginLayoutParams
-            lp.topMargin = insets.top
+            lp.topMargin = 0
             lp.leftMargin = insets.left
             lp.bottomMargin = insets.bottom
             lp.rightMargin = insets.right
             insetLeft = insets.left
-            insetTop = insets.top
             v.layoutParams = lp
+            val rects = ArrayList<Int>()
+            windowInsets.displayCutout?.boundingRects?.forEach { r ->
+                if (r.top <= 0 && r.bottom <= v.rootView.height / 4) {
+                    rects.add(r.left - insets.left)
+                    rects.add(r.right - insets.left)
+                    rects.add(r.bottom)
+                }
+            }
+            try {
+                nativeSetInsets(insets.top, rects.toIntArray())
+            } catch (e: UnsatisfiedLinkError) {
+                Log.w(TAG, "nativeSetInsets missing")
+            }
             windowInsets
         }
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        WindowInsetsControllerCompat(window, window.decorView).isAppearanceLightStatusBars = false
     }
 }

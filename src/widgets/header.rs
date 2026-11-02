@@ -66,8 +66,14 @@ impl Header {
         tx: &Transaction,
     ) -> Response {
         let wide = ui.available_width() >= theme::WIDE_BREAKPOINT;
+        let top = crate::android_window::top_band_points(ui.ctx().pixels_per_point());
         let r = Frame::new()
-            .inner_margin(Margin::symmetric(16, 0))
+            .inner_margin(Margin {
+                left: 16,
+                right: 16,
+                top: top.round().clamp(0.0, 127.0) as i8,
+                bottom: 0,
+            })
             .show(ui, |ui| {
                 let size = vec2(ui.available_width(), HEADER_HEIGHT);
                 ui.allocate_ui_with_layout(size, Layout::left_to_right(Align::Center), |ui| {
