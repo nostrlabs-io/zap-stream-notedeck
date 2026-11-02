@@ -28,10 +28,16 @@ impl Header {
             )
             .on_hover_and_drag_cursor(CursorIcon::PointingHand);
         let mut chosen = None;
+        if std::env::var("ZAP_STREAM_DEBUG_MENU").as_deref() == Ok("lang") {
+            std::env::remove_var("ZAP_STREAM_DEBUG_MENU");
+            egui::Popup::open_id(ui.ctx(), egui::Id::new("language-menu"));
+        }
         egui::Popup::menu(&button)
             .id(egui::Id::new("language-menu"))
             .show(|ui| {
                 ui.set_min_width(160.0);
+                ui.spacing_mut().button_padding = egui::vec2(8.0, 5.0);
+                egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
                 for (code, name) in crate::i18n::LOCALES {
                     let active = *code == current;
                     let text = theme::medium(*name, 14.0).color(if active { PRIMARY } else { TEXT });
@@ -40,6 +46,7 @@ impl Header {
                         ui.close();
                     }
                 }
+                });
             });
         if let Some(code) = chosen {
             services.action(crate::route::RouteAction::SetLocale(code));
@@ -113,6 +120,10 @@ impl Header {
                                 .unwrap_or(crate::i18n::t("common.anon"))
                                 .to_string();
                             let mut action = None;
+                            if std::env::var("ZAP_STREAM_DEBUG_MENU").as_deref() == Ok("account") {
+                                std::env::remove_var("ZAP_STREAM_DEBUG_MENU");
+                                egui::Popup::open_id(ui.ctx(), egui::Id::new("account-menu"));
+                            }
                             egui::Popup::menu(&avatar)
                                 .id(egui::Id::new("account-menu"))
                                 .show(|ui| {

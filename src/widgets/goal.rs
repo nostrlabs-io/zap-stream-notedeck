@@ -81,13 +81,24 @@ impl Goal {
                 }
             }
         }
+        paint_goal(ui, &title, total, target);
+    }
+}
+
+pub fn debug_goal() -> Option<(String, u64, u64)> {
+    std::env::var_os("ZAP_STREAM_DEBUG_GOAL")
+        .map(|_| ("Upgrade the studio camera".to_string(), 420_000_000, 1_000_000_000))
+}
+
+pub fn paint_goal(ui: &mut Ui, title: &str, total: u64, target: u64) {
+    {
         let fraction = progress(total, target);
         let remaining_sats = target.saturating_sub(total) / 1000;
 
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing.y = 4.0;
             ui.horizontal(|ui| {
-                ui.label(theme::medium(&title, 14.0).color(theme::TEXT));
+                ui.label(theme::medium(title, 14.0).color(theme::TEXT));
                 if remaining_sats > 0 {
                     ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                         ui.label(
