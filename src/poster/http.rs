@@ -162,6 +162,7 @@ mod live {
             "https://esports.einundzwanzig.space/live/stream.m3u8",
             "https://v3.coinos.io/live/5240ef07857b2812/live.m3u8",
             "https://video.noderunnersradio.com/hls/stream.m3u8",
+            "https://api-uk.zap.stream/537a365c-f1ec-44ac-af10-22d14a7319fb/hls/live.m3u8",
         ] {
             let r = l.grab_frame(u);
             eprintln!("{u} -> {:?}", r.as_ref().map(|i| (i.width(), i.height())));

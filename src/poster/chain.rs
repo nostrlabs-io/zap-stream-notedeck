@@ -32,7 +32,7 @@ pub fn host_of(url: &str) -> Option<&str> {
 pub fn host_thumb_url(streaming: &str) -> Option<(String, String)> {
     let host = host_of(streaming)?.to_string();
     let idx = streaming.find("/hls/")?;
-    Some((host, format!("{}/hls/thumb.webp", &streaming[..idx])))
+    Some((host, format!("{}/thumb.webp", &streaming[..idx])))
 }
 
 fn try_url(loader: &dyn Loader, memo: &Mutex<FailureMemo>, url: &str) -> Option<RgbaImage> {
@@ -114,7 +114,7 @@ mod tests {
     }
 
     const STREAM: &str = "https://api-uk.zap.stream/live/abc/hls/stream.m3u8";
-    const THUMB: &str = "https://api-uk.zap.stream/live/abc/hls/thumb.webp";
+    const THUMB: &str = "https://api-uk.zap.stream/live/abc/thumb.webp";
 
     fn cands() -> Candidates {
         Candidates {
