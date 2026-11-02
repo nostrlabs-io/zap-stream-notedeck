@@ -23,6 +23,17 @@ struct ModalState {
     timeouts: bool,
 }
 
+pub fn debug_modal_flags(v: &str) -> (bool, bool) {
+    (v == "picker", v == "timeouts")
+}
+
+fn debug_modal(id: &[u8; 32], author: &[u8; 32], content: &str) -> Option<ModalState> {
+    let v = std::env::var("ZAP_STREAM_DEBUG_CHAT_MODAL").ok()?;
+    std::env::remove_var("ZAP_STREAM_DEBUG_CHAT_MODAL");
+    let (picker, timeouts) = debug_modal_flags(&v);
+    Some(ModalState { id: *id, author: *author, content: content.to_string(), picker, timeouts })
+}
+
 pub struct Chat {
     link: NostrLink,
     stream: Option<NoteKey>,
@@ -131,6 +142,11 @@ impl Chat {
             RowKind::Message { id, author, segments, content } => {
                 if services.is_muted(author) {
                     return;
+                }
+                if self.modal.is_none() {
+                    if let Some(state) = debug_modal(id, author, content) {
+                        self.modal = Some(state);
+                    }
                 }
                 let known = self.heights.get(&row.key).copied();
                 let can_open = services.me().is_some();
@@ -411,5 +427,17 @@ impl NostrWidget for Chat {
             self.data = data;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::debug_modal_flags;
+
+    #[test]
+    fn debug_modal_flags_select_panel() {
+        assert_eq!(debug_modal_flags("picker"), (true, false));
+        assert_eq!(debug_modal_flags("timeouts"), (false, true));
+        assert_eq!(debug_modal_flags("1"), (false, false));
     }
 }
