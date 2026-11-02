@@ -4,7 +4,6 @@ pub struct FrameStats {
     last: Instant,
     window_start: Instant,
     frames: Vec<f32>,
-    causes: std::collections::HashMap<String, u32>,
 }
 
 impl FrameStats {
@@ -22,14 +21,10 @@ impl FrameStats {
             last: now,
             window_start: now,
             frames: Vec::new(),
-            causes: std::collections::HashMap::new(),
         }
     }
 
-    pub fn tick(&mut self, ctx: &egui::Context) {
-        for c in ctx.repaint_causes() {
-            *self.causes.entry(c.to_string()).or_default() += 1;
-        }
+    pub fn tick(&mut self) {
         let now = Instant::now();
         self.frames
             .push(now.duration_since(self.last).as_secs_f32() * 1000.0);
@@ -41,11 +36,6 @@ impl FrameStats {
     }
 
     fn report(&mut self) {
-        let mut causes: Vec<_> = std::mem::take(&mut self.causes).into_iter().collect();
-        causes.sort_by(|a, b| b.1.cmp(&a.1));
-        for (cause, n) in causes.iter().take(5) {
-            log::info!("repaint_cause {n} {cause}");
-        }
         let mut t = std::mem::take(&mut self.frames);
         if t.is_empty() {
             return;
