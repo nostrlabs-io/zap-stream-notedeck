@@ -19,6 +19,7 @@ pub struct HomePage {
     preview: Option<(String, widgets::StreamPlayer)>,
     board: (u64, Vec<([u8; 32], u64)>),
     board_len: usize,
+    window_anchor: u64,
     board_pending: bool,
     totals: crate::zap::SenderTotals<nostrdb::NoteKey>,
     render_state: Option<egui_wgpu::RenderState>,
@@ -56,6 +57,7 @@ impl HomePage {
             pull: PullToRefresh::default(),
             board: (0, Vec::new()),
             board_len: usize::MAX,
+            window_anchor: now_secs(),
             board_pending: false,
             totals: crate::zap::SenderTotals::new(),
             render_state,
@@ -67,28 +69,32 @@ impl HomePage {
     }
 
     fn refresh(&mut self) {
+        self.window_anchor = now_secs();
+        self.totals = crate::zap::SenderTotals::new();
+        self.board_len = usize::MAX;
         self.sub = None;
         self.zap_sub = None;
         self.pull.refreshed_at = Some(std::time::Instant::now());
     }
 
     fn zap_filters() -> Vec<Filter> {
-        let since = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs().saturating_sub(86_400))
-            .unwrap_or(0);
-        vec![Filter::new().kinds([9_735]).since(since).limit(500).build()]
+        let since = crate::zap::window_start(now_secs());
+        vec![Filter::new().kinds([9_735]).since(since).limit(5_000).build()]
     }
 
     fn leaderboard(&mut self, services: &mut RouteServices<'_, '_>) -> (u64, Vec<([u8; 32], u64)>) {
         if self.board_len != self.zaps.len() || self.board_pending {
             let ndb = &services.ctx.ndb;
             let tx = services.tx;
+            let window_start = crate::zap::window_start(self.window_anchor);
             self.board_pending = self.totals.absorb(
                 self.zaps.iter().map(|r| &r.key),
                 crate::zap::SENDER_TOTALS_BATCH,
                 |key| {
                     let note = ndb.get_note_by_key(tx, key).ok()?;
+                    if note.created_at() < window_start {
+                        return None;
+                    }
                     let z = crate::zap::Zap::from_receipt(note).ok()?;
                     Some((z.sender, z.amount))
                 },
@@ -116,7 +122,7 @@ impl HomePage {
             ui.label(theme::semibold(crate::i18n::t("home.zapped_24h"), 15.0));
             ui.horizontal(|ui| {
                 ui.spacing_mut().item_spacing.x = 6.0;
-                ui.label(theme::display(crate::zap::format_sats(total as f32), 46.0).color(theme::PRIMARY));
+                ui.label(theme::display(crate::zap::format_sats_total(total), 46.0).color(theme::PRIMARY));
                 ui.label(theme::medium(crate::i18n::t("common.sats"), 16.0).color(theme::MUTED));
             });
             for (pk, sats) in top {
@@ -455,4 +461,11 @@ mod tests {
         p.update(true, true, -50.0);
         assert_eq!(p.distance, 0.0);
     }
+}
+
+fn now_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }

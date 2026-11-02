@@ -67,6 +67,29 @@ pub fn format_sats(n: f32) -> String {
     format!("{}{}", fmt.format_to_string(&d), suffix)
 }
 
+pub fn format_sats_total(sats: u64) -> String {
+    if sats >= 2_000 && sats < 999_500 {
+        let k = (sats + 500) / 1_000;
+        return format!("{}K", k);
+    }
+    if sats < 2_000 {
+        return sats.to_string();
+    }
+    if sats < 1_000_000 {
+        return "1M".to_string();
+    }
+    let tenths = (sats + 50_000) / 100_000;
+    if tenths % 10 == 0 {
+        format!("{}M", tenths / 10)
+    } else {
+        format!("{}.{}M", tenths / 10, tenths % 10)
+    }
+}
+
+pub fn window_start(anchor: u64) -> u64 {
+    anchor.saturating_sub(86_400)
+}
+
 pub fn top_senders(zaps: &[Zap<'_>], limit: usize) -> Vec<([u8; 32], u64)> {
     let mut by_sender: std::collections::HashMap<[u8; 32], u64> = Default::default();
     for z in zaps {
@@ -178,5 +201,27 @@ mod tests {
         assert_eq!(totals.top(1), vec![([0; 32], 10)]);
         assert!(totals.take_dirty());
         assert!(!totals.take_dirty());
+    }
+}
+
+#[cfg(test)]
+mod total_format_tests {
+    use super::*;
+
+    #[test]
+    fn rounds_to_whole_thousands_from_two_thousand() {
+        assert_eq!(format_sats_total(1_999), "1999");
+        assert_eq!(format_sats_total(2_000), "2K");
+        assert_eq!(format_sats_total(109_217), "109K");
+        assert_eq!(format_sats_total(109_500), "110K");
+        assert_eq!(format_sats_total(999_600), "1M");
+        assert_eq!(format_sats_total(1_000_000), "1M");
+        assert_eq!(format_sats_total(2_340_000), "2.3M");
+    }
+
+    #[test]
+    fn window_is_one_day_before_anchor() {
+        assert_eq!(window_start(100_000), 13_600);
+        assert_eq!(window_start(10), 0);
     }
 }

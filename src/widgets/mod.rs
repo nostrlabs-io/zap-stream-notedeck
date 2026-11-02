@@ -65,7 +65,7 @@ pub fn sub_or_poll(
         let owner = SubOwnerKey::new(("zap-stream-ndb", s.id()));
         let identity = ScopedSubIdentity::account(owner, SubKey::new(("ndb", s.id())));
         sub.replace(SubRef::new(s, ndb.clone(), owner));
-        ndb.query(tx, filters.as_slice(), 500)?
+        ndb.query(tx, filters.as_slice(), 20_000)?
             .into_iter()
             .for_each(|e| {
                 store.insert(NoteRef::from_query_result(e));
