@@ -94,6 +94,7 @@ impl<'a> StreamTitle<'a> {
                         }
                     }
                     ZapButton::event(self.event).render(ui, services);
+                    self.moderation_buttons(ui, services);
 
                     if let Some(url) = self.event.share_url() {
                         let id = ui.id().with("share-copied");
@@ -109,6 +110,20 @@ impl<'a> StreamTitle<'a> {
                 self.render_details(ui, services, false);
             })
             .response
+    }
+
+    fn moderation_buttons(&self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
+        let host = *self.event.host();
+        let tags = self.event.tags_vec();
+        let target = crate::moderation::ReportTarget::Stream {
+            coordinate: crate::link::NostrLink::from_note(self.event).to_tag_value(),
+            host,
+            relays: crate::moderation::relays_from_tags(&tags),
+        };
+        crate::widgets::report::button(ui, services, target);
+        if services.can_sign() {
+            crate::widgets::mute_button::show(ui, services, &host);
+        }
     }
 
     fn render_details(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>, actions: bool) {
@@ -128,6 +143,7 @@ impl<'a> StreamTitle<'a> {
                     services.set_following(&host, !following);
                 }
             }
+            self.moderation_buttons(ui, services);
             if let Some(url) = self.event.share_url() {
                 let id = ui.id().with("share-copied");
                 let copied = ui.data(|d| d.get_temp::<bool>(id)).unwrap_or(false);

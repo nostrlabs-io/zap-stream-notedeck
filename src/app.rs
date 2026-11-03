@@ -450,6 +450,7 @@ impl notedeck::App for ZapStreamApp {
                                 });
                             });
                     });
+                    crate::widgets::report::show(ui, &mut svc);
                 });
             });
 
@@ -479,7 +480,13 @@ impl notedeck::App for ZapStreamApp {
 
 impl ZapStreamApp {
     fn frame_margin(&self) -> Margin {
-        Margin::ZERO
+        let i = crate::safe_area::insets();
+        Margin {
+            left: i.left.round() as i8,
+            right: i.right.round() as i8,
+            top: i.top.round() as i8,
+            bottom: i.bottom.round() as i8,
+        }
     }
 }
 

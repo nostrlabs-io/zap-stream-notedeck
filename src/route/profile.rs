@@ -127,10 +127,17 @@ impl NostrWidget for ProfilePage {
                             }
                             if !is_me && can_sign {
                                 let muted = services.is_muted(&self.pubkey);
-                                let label = if muted { crate::i18n::t("button.unmute") } else { crate::i18n::t("button.mute") };
+                                let label = if muted { crate::i18n::t("button.unblock") } else { crate::i18n::t("button.block") };
                                 if Button::new().text(ui, label).clicked() {
                                     services.set_muted(&self.pubkey, !muted);
                                 }
+                            }
+                            if !is_me {
+                                crate::widgets::report::button(
+                                    ui,
+                                    services,
+                                    crate::moderation::ReportTarget::Profile { pubkey: self.pubkey },
+                                );
                             }
                             ZapButton::pubkey(self.pubkey).render(ui, services);
                             let npub = PublicKey::from_slice(&self.pubkey)

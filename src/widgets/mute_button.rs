@@ -11,9 +11,9 @@ pub fn show(ui: &mut Ui, services: &mut RouteServices<'_, '_>, target: &[u8; 32]
     }
     let muted = services.is_muted(target);
     let label = if muted {
-        crate::i18n::t("button.unmute")
+        crate::i18n::t("button.unblock")
     } else {
-        crate::i18n::t("button.mute")
+        crate::i18n::t("button.block")
     };
     let mut btn = Button::new();
     if !muted {
