@@ -154,12 +154,14 @@ class MainActivity : GameActivity() {
         File(dir, "pending_link").writeText(data)
     }
 
-    private var insetLeft = 0
 
     private external fun nativeSetInsets(top: Int, rects: IntArray)
 
     override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
-        ev.offsetLocation(-2f * insetLeft, 0f)
+        val loc = IntArray(2)
+        window.decorView.findViewById<View>(android.R.id.content).getLocationInWindow(loc)
+        val (dx, dy) = TouchMapping.offset(loc[0], loc[1])
+        ev.offsetLocation(dx, dy)
         return super.dispatchTouchEvent(ev)
     }
 
@@ -176,7 +178,6 @@ class MainActivity : GameActivity() {
             lp.leftMargin = insets.left
             lp.bottomMargin = insets.bottom
             lp.rightMargin = insets.right
-            insetLeft = insets.left
             v.layoutParams = lp
             val rects = ArrayList<Int>()
             windowInsets.displayCutout?.boundingRects?.forEach { r ->

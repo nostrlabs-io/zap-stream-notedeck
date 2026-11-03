@@ -279,6 +279,9 @@ impl StreamPlayer {
         self.reconnect_banner(ui, video_rect);
 
         if !self.controls_visible(ui, video_rect) {
+            if self.fullscreen && player_controls::paint_exit_fullscreen(ui, video_rect) {
+                self.fullscreen = false;
+            }
             return;
         }
         let labels: Vec<String> = self.renditions.iter().map(|r| r.label.clone()).collect();
