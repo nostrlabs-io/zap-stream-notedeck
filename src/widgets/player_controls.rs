@@ -5,7 +5,10 @@ use egui::{
     Ui,
 };
 
-pub const BAR_HEIGHT: f32 = 44.0;
+pub const BAR_HEIGHT: f32 = 56.0;
+pub const SLOT: f32 = 48.0;
+pub const SLOT_GAP: f32 = 8.0;
+const SLOT_PITCH: f32 = SLOT + SLOT_GAP;
 const SCRIM: Color32 = Color32::from_rgba_premultiplied(0, 0, 0, 170);
 const ICON: Color32 = Color32::WHITE;
 
@@ -33,6 +36,18 @@ pub struct ControlsInput<'a> {
     pub live: bool,
     pub elapsed: Option<String>,
     pub viewers: Option<u32>,
+}
+
+pub fn exit_fullscreen_slot(rect: Rect) -> Rect {
+    Rect::from_center_size(pos2(rect.max.x - 12.0 - SLOT / 2.0, rect.min.y + 12.0 + SLOT / 2.0), vec2(SLOT, SLOT))
+}
+
+pub fn paint_exit_fullscreen(ui: &mut Ui, rect: Rect) -> bool {
+    let slot = exit_fullscreen_slot(rect);
+    ui.painter().circle_filled(slot.center(), 18.0, SCRIM);
+    let hit = icon_button(ui, "player-fullscreen", slot);
+    paint_fullscreen(ui, slot.center(), true);
+    hit
 }
 
 fn icon_button(ui: &mut Ui, id: &str, rect: Rect) -> bool {
@@ -191,16 +206,16 @@ fn live_badge(ui: &Ui, origin: Pos2, elapsed: Option<&str>, viewers: Option<u32>
 pub fn show(ui: &mut Ui, rect: Rect, input: &ControlsInput<'_>) -> ControlsOutput {
     let mut out = ControlsOutput::default();
     let top = Rect::from_min_size(rect.min, vec2(rect.width(), 56.0));
-    let bar = Rect::from_min_max(pos2(rect.min.x, rect.max.y - BAR_HEIGHT - 16.0), rect.max);
+    let bar = Rect::from_min_max(pos2(rect.min.x, rect.max.y - BAR_HEIGHT - 8.0), rect.max);
     scrim(ui, bar, false);
     scrim(ui, top, true);
     if input.live {
         live_badge(ui, rect.min + vec2(12.0, 12.0), input.elapsed.as_deref(), input.viewers);
     }
 
-    let y = rect.max.y - BAR_HEIGHT / 2.0 - 4.0;
-    let slot = |cx: f32| Rect::from_center_size(pos2(cx, y), vec2(36.0, 36.0));
-    let mut x = rect.min.x + 12.0 + 18.0;
+    let y = rect.max.y - SLOT / 2.0 - 4.0;
+    let slot = |cx: f32| Rect::from_center_size(pos2(cx, y), vec2(SLOT, SLOT));
+    let mut x = rect.min.x + 12.0 + SLOT / 2.0;
 
     let play = slot(x);
     if icon_button(ui, "player-play", play) {
@@ -211,14 +226,14 @@ pub fn show(ui: &mut Ui, rect: Rect, input: &ControlsInput<'_>) -> ControlsOutpu
     } else {
         paint_play(ui, play.center());
     }
-    x += 40.0;
+    x += SLOT_PITCH;
 
     let mute = slot(x);
     if icon_button(ui, "player-mute", mute) {
         out.toggle_mute = true;
     }
     paint_speaker(ui, mute.center(), input.muted, input.volume);
-    x += 36.0;
+    x += SLOT_PITCH;
 
     if rect.width() >= 420.0 {
         let vol = Rect::from_center_size(pos2(x + 40.0, y), vec2(80.0, 24.0));
@@ -227,13 +242,13 @@ pub fn show(ui: &mut Ui, rect: Rect, input: &ControlsInput<'_>) -> ControlsOutpu
     }
     let _ = x;
 
-    let mut rx = rect.max.x - 12.0 - 18.0;
+    let mut rx = rect.max.x - 12.0 - SLOT / 2.0;
     let fs = slot(rx);
     if icon_button(ui, "player-fullscreen", fs) {
         out.toggle_fullscreen = true;
     }
     paint_fullscreen(ui, fs.center(), input.fullscreen);
-    rx -= 40.0;
+    rx -= SLOT_PITCH;
 
     if crate::android_window::PIP_AVAILABLE {
         let pip = slot(rx);
@@ -241,7 +256,7 @@ pub fn show(ui: &mut Ui, rect: Rect, input: &ControlsInput<'_>) -> ControlsOutpu
             out.enter_pip = true;
         }
         paint_pip(ui, pip.center());
-        rx -= 40.0;
+        rx -= SLOT_PITCH;
     }
 
     if !input.qualities.is_empty() {
@@ -251,7 +266,7 @@ pub fn show(ui: &mut Ui, rect: Rect, input: &ControlsInput<'_>) -> ControlsOutpu
             ICON,
         );
         let w = g.size().x + 20.0;
-        let q = Rect::from_center_size(pos2(rx - w / 2.0 + 18.0, y), vec2(w, 32.0));
+        let q = Rect::from_center_size(pos2(rx - w / 2.0 + 18.0, y), vec2(w, SLOT));
         if icon_button(ui, "player-quality", q) {
             out.toggle_menu = true;
         }
@@ -298,4 +313,46 @@ pub fn show(ui: &mut Ui, rect: Rect, input: &ControlsInput<'_>) -> ControlsOutpu
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn bottom_slots(rect: Rect, with_pip: bool) -> (Rect, Option<Rect>) {
+        let y = rect.max.y - SLOT / 2.0 - 4.0;
+        let fs_x = rect.max.x - 12.0 - SLOT / 2.0;
+        let fs = Rect::from_center_size(pos2(fs_x, y), vec2(SLOT, SLOT));
+        let pip = with_pip.then(|| Rect::from_center_size(pos2(fs_x - SLOT_PITCH, y), vec2(SLOT, SLOT)));
+        (fs, pip)
+    }
+
+    #[test]
+    fn slots_are_large_and_separated() {
+        let video = Rect::from_min_max(pos2(61.8, 0.0), pos2(793.3, 411.4));
+        let (fs, pip) = bottom_slots(video, true);
+        let pip = pip.unwrap();
+        assert!(fs.width() >= 48.0 && fs.height() >= 48.0);
+        assert!(fs.left() - pip.right() >= 8.0);
+    }
+
+    #[test]
+    fn phone_tap_in_rot1_lands_in_exit_button() {
+        let ppp = 2.45;
+        let view_left_px = 149.0;
+        let raw_x_px = 2028.9;
+        let raw_y_px = 920.25;
+        let pos = pos2((raw_x_px - view_left_px) / ppp, raw_y_px / ppp);
+        let video = Rect::from_min_max(pos2(61.8, 0.0), pos2(793.3, 411.4));
+        let (fs, _) = bottom_slots(video, true);
+        assert!(fs.contains(pos));
+    }
+
+    #[test]
+    fn exit_slot_is_top_right_and_large() {
+        let video = Rect::from_min_max(pos2(0.0, 0.0), pos2(800.0, 400.0));
+        let slot = exit_fullscreen_slot(video);
+        assert!(slot.width() >= 48.0);
+        assert!(video.contains_rect(slot));
+    }
 }

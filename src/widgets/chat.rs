@@ -74,6 +74,13 @@ fn debug_modal(id: &[u8; 32], author: &[u8; 32], content: &str) -> Option<ModalS
     Some(ModalState { id: *id, author: *author, content: content.to_string(), picker, timeouts })
 }
 
+const RESTICK_FRAMES: u8 = 3;
+const ROW_SLACK: f32 = 48.0;
+
+fn near_bottom(offset: f32, viewport: f32, content: f32, slack: f32) -> bool {
+    content <= viewport || offset + viewport >= content - slack
+}
+
 fn build_stamp(events: usize, aux: usize, now: u64, time_independent: bool) -> (usize, usize, u64) {
     (events, aux, if time_independent { 0 } else { now / 10 })
 }
@@ -109,6 +116,8 @@ pub struct Chat {
     built_for: (usize, usize, u64),
     heights: HashMap<NoteKey, f32>,
     measured_width: f32,
+    at_bottom: bool,
+    restick_frames: u8,
     raid_started: HashMap<NoteKey, Option<f64>>,
     modal: Option<ModalState>,
     top: Vec<([u8; 32], u64)>,
@@ -134,6 +143,8 @@ impl Chat {
             built_for: (usize::MAX, usize::MAX, 0),
             heights: Default::default(),
             measured_width: 0.0,
+            at_bottom: true,
+            restick_frames: 0,
             raid_started: HashMap::new(),
             modal: None,
             top: Vec::new(),
@@ -414,12 +425,20 @@ impl NostrWidget for Chat {
         if (self.measured_width - width).abs() > 1.0 {
             self.heights.clear();
             self.measured_width = width;
+            if self.at_bottom {
+                self.restick_frames = RESTICK_FRAMES;
+            }
         }
 
         self.top_zappers_row(ui, services);
 
         let estimate = 32.0;
-        ScrollArea::vertical()
+        let restick = self.restick_frames > 0;
+        self.restick_frames = self.restick_frames.saturating_sub(1);
+        if restick {
+            ui.ctx().request_repaint();
+        }
+        let out = ScrollArea::vertical()
             .auto_shrink([false, false])
             .stick_to_bottom(true)
             .show_viewport(ui, |ui, viewport| {
@@ -452,7 +471,18 @@ impl NostrWidget for Chat {
                 if t0.elapsed().as_micros() > 1500 {
                     log::info!("chat_rows rendered={} total={} {:?}", rendered, self.data.rows.len(), t0.elapsed());
                 }
+                if restick {
+                    ui.scroll_to_cursor(Some(egui::Align::BOTTOM));
+                }
             });
+        if !restick && self.restick_frames == 0 {
+            self.at_bottom = near_bottom(
+                out.state.offset.y,
+                out.inner_rect.height(),
+                out.content_size.y,
+                ROW_SLACK,
+            );
+        }
         self.render_modal(ui, services, host);
         ui.response()
     }
@@ -525,7 +555,7 @@ impl NostrWidget for Chat {
 
 #[cfg(test)]
 mod tests {
-    use super::{build_stamp, commit_build, debug_modal_flags};
+    use super::{build_stamp, commit_build, debug_modal_flags, near_bottom};
     use crate::chat_data::{ChatData, Want};
 
     #[test]
@@ -539,6 +569,15 @@ mod tests {
         assert!(r.is_err());
         assert!(slot.muted.contains(&[1; 32]));
         assert!(wants.is_empty());
+    }
+
+    #[test]
+    fn near_bottom_decides_anchor() {
+        assert!(near_bottom(0.0, 500.0, 300.0, 48.0));
+        assert!(near_bottom(980.0, 500.0, 1500.0, 48.0));
+        assert!(near_bottom(960.0, 500.0, 1500.0, 48.0));
+        assert!(!near_bottom(900.0, 500.0, 1500.0, 48.0));
+        assert!(!near_bottom(0.0, 500.0, 1500.0, 48.0));
     }
 
     #[test]
