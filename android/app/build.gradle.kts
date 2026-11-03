@@ -15,10 +15,10 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "stream.zap.app"
+        applicationId = "io.nostrlabs.zap_stream_flutter"
         minSdk = 26      // Required for HardwareBuffer API
         targetSdk = 35
-        versionCode = 2
+        versionCode = (System.getenv("VERSION_CODE") ?: "25").toInt()
         versionName = "0.2.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -30,8 +30,23 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            val keystore = System.getenv("KEYSTORE_FILE")
+            if (!keystore.isNullOrEmpty()) {
+                storeFile = file(keystore)
+                storePassword = System.getenv("KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("KEY_ALIAS")
+                keyPassword = System.getenv("KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (!System.getenv("KEYSTORE_FILE").isNullOrEmpty()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

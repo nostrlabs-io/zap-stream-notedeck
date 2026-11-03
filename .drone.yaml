@@ -10,3 +10,7 @@ steps:
     image: rust:trixie
     commands:
       - ./debian.sh
+  - name: test
+    image: rust:trixie
+    commands:
+      - cargo test --release --lib
