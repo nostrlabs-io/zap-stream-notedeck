@@ -50,7 +50,13 @@ pub fn install(ctx: &egui::Context) {
     apply_style(ctx);
 }
 
+const MONOCHROME_EMOJI_FONTS: [&str; 2] = ["NotoEmoji-Regular", "emoji-icon-font"];
+
 pub fn install_fonts(ctx: &egui::Context) {
+    ctx.set_fonts(font_definitions());
+}
+
+pub fn font_definitions() -> egui::FontDefinitions {
     let mut fd = egui::FontDefinitions::default();
     let load = |fd: &mut egui::FontDefinitions, name: &str, bytes: &'static [u8]| {
         fd.font_data
@@ -86,7 +92,10 @@ pub fn install_fonts(ctx: &egui::Context) {
         .families
         .get(&FontFamily::Proportional)
         .cloned()
-        .unwrap_or_default();
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|name| !MONOCHROME_EMOJI_FONTS.contains(&name.as_str()))
+        .collect::<Vec<_>>();
     let with_fallback = |first: &str| {
         let mut v = vec![first.to_string()];
         v.extend(fallback.iter().cloned());
@@ -102,7 +111,7 @@ pub fn install_fonts(ctx: &egui::Context) {
         .insert(display_bold(), with_fallback("Bricolage-Bold"));
     fd.families
         .insert(display_family(), with_fallback("Bricolage-ExtraBold"));
-    ctx.set_fonts(fd);
+    fd
 }
 
 pub fn apply_style(ctx: &egui::Context) {
@@ -156,4 +165,22 @@ pub fn medium(text: impl Into<String>, size: f32) -> egui::RichText {
 
 pub fn semibold(text: impl Into<String>, size: f32) -> egui::RichText {
     egui::RichText::new(text).font(FontId::new(size, semibold_family()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn emoji_fall_through_to_system_colour_font() {
+        let fd = font_definitions();
+        for (family, fonts) in &fd.families {
+            for mono in MONOCHROME_EMOJI_FONTS {
+                assert!(
+                    !fonts.iter().any(|f| f == mono),
+                    "{family:?} still lists monochrome {mono}"
+                );
+            }
+        }
+    }
 }
