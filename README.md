@@ -17,3 +17,8 @@ Video plays through [lumina-video](https://github.com/v0l/lumina-video) (hardwar
 - Android: `./android.sh` (cargo-ndk, JDK 21, NDK 28)
 
 Set `ZAP_STREAM_FRAME_STATS=1` to log frame times every 5 seconds (always on for Android).
+
+## Releasing
+
+- Android AAB: `KEYSTORE_FILE=... KEYSTORE_PASSWORD=... KEY_ALIAS=... KEY_PASSWORD=... VERSION_CODE=N ./android-aab.sh`. The application id is `io.nostrlabs.zap_stream_flutter`, the same as the Flutter app, so it ships as an update to the existing Play listing and must be signed with the same upload key.
+- iOS: run `./ios.sh` on a Mac for the simulator, or `./ios-appstore.sh` for a signed `.ipa` (bundle id `io.nostrlabs.zap-stream`, same as the Flutter app).
