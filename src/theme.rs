@@ -56,7 +56,28 @@ pub fn install_fonts(ctx: &egui::Context) {
     ctx.set_fonts(font_definitions());
 }
 
+const COLOUR_EMOJI_PATHS: [&str; 6] = [
+    "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf",
+    "/usr/share/fonts/noto/NotoColorEmoji.ttf",
+    "/usr/share/fonts/google-noto-color-emoji-fonts/Noto-COLRv1.ttf",
+    "/system/fonts/NotoColorEmoji.ttf",
+    "/System/Library/Fonts/Apple Color Emoji.ttc",
+    "C:\\Windows\\Fonts\\seguiemj.ttf",
+];
+
+const COLOUR_EMOJI: &str = "colour-emoji";
+
+fn load_colour_emoji() -> Option<Vec<u8>> {
+    COLOUR_EMOJI_PATHS
+        .iter()
+        .find_map(|p| std::fs::read(p).ok())
+}
+
 pub fn font_definitions() -> egui::FontDefinitions {
+    font_definitions_with(load_colour_emoji())
+}
+
+fn font_definitions_with(colour_emoji: Option<Vec<u8>>) -> egui::FontDefinitions {
     let mut fd = egui::FontDefinitions::default();
     let load = |fd: &mut egui::FontDefinitions, name: &str, bytes: &'static [u8]| {
         fd.font_data
@@ -96,8 +117,16 @@ pub fn font_definitions() -> egui::FontDefinitions {
         .into_iter()
         .filter(|name| !MONOCHROME_EMOJI_FONTS.contains(&name.as_str()))
         .collect::<Vec<_>>();
+    let has_colour = colour_emoji.is_some();
+    if let Some(bytes) = colour_emoji {
+        fd.font_data
+            .insert(COLOUR_EMOJI.to_string(), Arc::new(egui::FontData::from_owned(bytes)));
+    }
     let with_fallback = |first: &str| {
         let mut v = vec![first.to_string()];
+        if has_colour {
+            v.push(COLOUR_EMOJI.to_string());
+        }
         v.extend(fallback.iter().cloned());
         v
     };
@@ -170,6 +199,14 @@ pub fn semibold(text: impl Into<String>, size: f32) -> egui::RichText {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn colour_emoji_font_precedes_system_fallbacks() {
+        let fd = font_definitions_with(Some(vec![0]));
+        for fonts in fd.families.values().filter(|f| f.iter().any(|n| n == "Hack") == false) {
+            assert_eq!(fonts[1], COLOUR_EMOJI);
+        }
+    }
 
     #[test]
     fn emoji_fall_through_to_system_colour_font() {
