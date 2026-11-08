@@ -85,6 +85,7 @@ impl SettingsPage {
             .inner_margin(Margin::symmetric(12, 10))
             .show(ui, |ui| {
                 let mut edit = TextEdit::singleline(value)
+                        .horizontal_align(crate::bidi::text_align())
                     .frame(Frame::NONE)
                     .hint_text(hint)
                     .desired_width(f32::INFINITY);
@@ -547,7 +548,7 @@ impl SettingsPage {
         for r in &current {
             ui.horizontal(|ui| {
                 ui.label(RichText::new(r).monospace().size(14.0).color(theme::TEXT));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                ui.with_layout(crate::bidi::end_layout(egui::Align::Center), |ui| {
                     if Button::new().text(ui, crate::i18n::t("button.remove")).clicked() {
                         remove = Some(r.clone());
                     }

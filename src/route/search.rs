@@ -75,6 +75,7 @@ impl NostrWidget for SearchPage {
                             .show(ui, |ui| {
                                 let r = ui.add(
                                     TextEdit::singleline(&mut self.input)
+                                        .horizontal_align(crate::bidi::text_align())
                                         .frame(egui::Frame::NONE)
                                         .hint_text(
                                             theme::semibold("Search streams, profiles, categories", theme::FONT_SIZE)

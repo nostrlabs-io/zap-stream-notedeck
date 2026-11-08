@@ -26,15 +26,15 @@ impl<'a> StreamTitle<'a> {
             let profile = services.profile(&host);
             Avatar::from_profile(&profile).size(28.).render(ui, services.ctx);
             let toggle = if expanded { crate::i18n::t("button.less") } else { crate::i18n::t("button.more") };
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.with_layout(crate::bidi::end_layout(egui::Align::Center), |ui| {
                 if Button::new().text(ui, toggle).clicked() {
                     ui.data_mut(|d| d.insert_temp(id, !expanded));
                 }
                 ZapButton::event(self.event).render(ui, services);
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                ui.with_layout(crate::bidi::start_layout(egui::Align::Center), |ui| {
                     ui.add(
                         Label::new(theme::semibold(
-                            self.event.title().unwrap_or(crate::i18n::t("common.untitled")),
+                            crate::bidi::visual(self.event.title().unwrap_or(crate::i18n::t("common.untitled"))),
                             16.0,
                         ))
                         .truncate(),
@@ -55,10 +55,10 @@ impl<'a> StreamTitle<'a> {
                 ui.spacing_mut().item_spacing = egui::vec2(8., 10.0);
 
                 let size = if ui.available_width() < 560.0 { 24.0 } else { 30.72 };
-                ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
+                ui.with_layout(egui::Layout::top_down(crate::bidi::text_align()), |ui| {
                     ui.add(
                         Label::new(theme::display(
-                            self.event.title().unwrap_or(crate::i18n::t("common.untitled")),
+                            crate::bidi::visual(self.event.title().unwrap_or(crate::i18n::t("common.untitled"))),
                             size,
                         ))
                         .wrap_mode(TextWrapMode::Wrap),
@@ -188,9 +188,9 @@ impl<'a> StreamTitle<'a> {
             .and_then(|r| r.variant().str())
         {
             if !summary.is_empty() {
-                ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
+                ui.with_layout(egui::Layout::top_down(crate::bidi::text_align()), |ui| {
                     ui.add(
-                        Label::new(RichText::new(summary).color(TEXT_SOFT))
+                        Label::new(RichText::new(crate::bidi::visual(summary)).color(TEXT_SOFT))
                             .wrap_mode(TextWrapMode::Wrap),
                     );
                 });

@@ -419,7 +419,7 @@ impl notedeck::App for ZapStreamApp {
                     RouteType::CategoriesPage | RouteType::CategoryPage { .. } => "categories",
                     _ => "",
                 };
-                ui.vertical(|ui| {
+                ui.scope_builder(egui::UiBuilder::new().layout(egui::Layout::top_down(crate::bidi::text_align())), |ui| {
                     ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
                     let mut svc = RouteServices::new(
                         egui_ctx,
@@ -441,11 +441,11 @@ impl notedeck::App for ZapStreamApp {
                             error!("{}", e);
                         }
                     }
-                    ui.horizontal_top(|ui| {
+                    ui.with_layout(crate::bidi::start_layout(egui::Align::Min), |ui| {
                         if wide {
                             ui.allocate_ui_with_layout(
                                 egui::vec2(crate::theme::SIDEBAR_WIDTH, ui.available_height()),
-                                egui::Layout::top_down(egui::Align::Min),
+                                egui::Layout::top_down(crate::bidi::text_align()),
                                 |ui| {
                                     egui::Frame::new()
                                         .inner_margin(egui::Margin::symmetric(12, 12))
@@ -463,7 +463,7 @@ impl notedeck::App for ZapStreamApp {
                                 bottom: 0,
                             })
                             .show(ui, |ui| {
-                                ui.vertical(|ui| {
+                                ui.scope_builder(egui::UiBuilder::new().layout(egui::Layout::top_down(crate::bidi::text_align())), |ui| {
                                     ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
                                     let _t = crate::frame_stats::Section::start("page");
                                     self.widget.render(ui, &mut svc);

@@ -147,7 +147,7 @@ impl StreamPage {
         let margin = 16.0;
         ui.allocate_ui_with_layout(
             Vec2::new(w, h),
-            Layout::top_down(Align::Min),
+            egui::Layout::top_down(crate::bidi::text_align()),
             |ui| {
                 ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
                 let video_h = ((w / 16.0) * 9.0).min(h * 0.42);
@@ -180,7 +180,7 @@ impl StreamPage {
                 let remaining = ui.available_height();
                 ui.allocate_ui_with_layout(
                     vec2(w, remaining),
-                    Layout::top_down(Align::Min),
+                    egui::Layout::top_down(crate::bidi::text_align()),
                     |ui| {
                         let _t = crate::frame_stats::Section::start("chat");
                         self.goal_bar(ui, services);

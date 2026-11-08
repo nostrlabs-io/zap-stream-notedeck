@@ -205,6 +205,7 @@ impl LoginPage {
                         crate::android_window::request_paste(ui.ctx(), id);
                     }
                     let mut edit = TextEdit::singleline(value)
+                        .horizontal_align(crate::bidi::text_align())
                         .frame(Frame::NONE)
                         .id(id)
                         .hint_text(hint)
@@ -378,7 +379,7 @@ impl LoginPage {
                             .size(14.0)
                             .color(theme::TEXT),
                     );
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.with_layout(crate::bidi::end_layout(egui::Align::Center), |ui| {
                         ui.label(
                             theme::medium(if self.copied { crate::i18n::t("button.copied_lower") } else { crate::i18n::t("button.copy_lower") }, 13.0)
                                 .color(theme::MUTED),
@@ -445,7 +446,7 @@ impl NostrWidget for LoginPage {
                                 back = Self::round_icon(ui, "back");
                             }
                             ui.with_layout(
-                                egui::Layout::right_to_left(egui::Align::Center),
+                                crate::bidi::end_layout(egui::Align::Center),
                                 |ui| x = Self::round_icon(ui, "x"),
                             );
                             (back, x)

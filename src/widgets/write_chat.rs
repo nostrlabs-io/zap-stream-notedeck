@@ -97,7 +97,7 @@ impl WriteChat {
                     ui.label(RichText::new(text).color(MUTED));
                     return;
                 }
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.with_layout(crate::bidi::end_layout(Align::Center), |ui| {
                     if Image::from_bytes("send-03.svg", logo_bytes)
                         .sense(Sense::click())
                         .ui(ui)

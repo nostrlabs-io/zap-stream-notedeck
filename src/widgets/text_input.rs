@@ -32,6 +32,7 @@ impl Widget for NativeTextInput<'_> {
     fn ui(self, ui: &mut Ui) -> Response {
         let mut editor = TextEdit::multiline(self.text)
             .frame(Frame::NONE)
+            .horizontal_align(crate::bidi::text_align())
             .desired_rows(1)
             .desired_width(f32::INFINITY);
         if let Some(hint_text) = self.hint_text {

@@ -213,7 +213,7 @@ impl HomePage {
                         .render(ui, services.ctx);
                     let name = profile.and_then(|p| p.name()).unwrap_or(crate::i18n::t("common.anon")).to_string();
                     ui.label(theme::semibold(name, 15.0));
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.with_layout(crate::bidi::end_layout(egui::Align::Center), |ui| {
                         ui.label(
                             theme::semibold(crate::zap::format_sats(*sats as f32), 15.0)
                                 .color(theme::PRIMARY),
@@ -399,7 +399,7 @@ impl NostrWidget for HomePage {
                                     ui.spacing_mut().item_spacing.x = gap;
                                     ui.allocate_ui_with_layout(
                                         egui::vec2(w - panel_w - gap, 365.0),
-                                        egui::Layout::top_down(egui::Align::Min),
+                                        egui::Layout::top_down(crate::bidi::text_align()),
                                         |ui| {
                                             let p = self.preview.as_mut().map(|(_, p)| p);
                                             Hero::new(top).render(ui, services, 365.0, p)
@@ -407,7 +407,7 @@ impl NostrWidget for HomePage {
                                     );
                                     ui.allocate_ui_with_layout(
                                         egui::vec2(panel_w, 365.0),
-                                        egui::Layout::top_down(egui::Align::Min),
+                                        egui::Layout::top_down(crate::bidi::text_align()),
                                         |ui| self.zapped_panel(ui, services, total, &top_zappers),
                                     );
                                 });

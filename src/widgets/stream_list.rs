@@ -54,7 +54,7 @@ impl<'a> StreamList<'a> {
                         for event in row {
                             ui.allocate_ui_with_layout(
                                 vec2(g_w, 0.0),
-                                egui::Layout::top_down(egui::Align::Min),
+                                egui::Layout::top_down(crate::bidi::text_align()),
                                 |ui| {
                                     ui.set_width(g_w);
                                     StreamEvent::new(event).render(ui, services);

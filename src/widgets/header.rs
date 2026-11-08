@@ -76,13 +76,13 @@ impl Header {
             })
             .show(ui, |ui| {
                 let size = vec2(ui.available_width(), height);
-                ui.allocate_ui_with_layout(size, Layout::left_to_right(Align::Center), |ui| {
+                ui.allocate_ui_with_layout(size, crate::bidi::start_layout(Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 8.;
                     if self.can_go_back {
-                        let back = Image::from_bytes(
+                        let back = crate::bidi::flip_icon(Image::from_bytes(
                             "arrow_left.svg",
                             include_bytes!("../resources/icons/arrow-left.svg"),
-                        )
+                        ))
                         .max_height(20.)
                         .sense(Sense::click())
                         .ui(ui)
@@ -102,7 +102,7 @@ impl Header {
                     if logo.clicked() {
                         services.navigate(RouteType::HomePage);
                     }
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.with_layout(crate::bidi::end_layout(Align::Center), |ui| {
                         ui.set_height(height);
                         ui.spacing_mut().item_spacing.x = 8.;
                         let acc = services.ctx.accounts.get_selected_account();
@@ -170,13 +170,13 @@ impl Header {
             })
             .show(ui, |ui| {
                 let size = vec2(ui.available_width(), HEADER_HEIGHT);
-                ui.allocate_ui_with_layout(size, Layout::left_to_right(Align::Center), |ui| {
+                ui.allocate_ui_with_layout(size, crate::bidi::start_layout(Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 10.;
                     if self.can_go_back {
-                        let back = Image::from_bytes(
+                        let back = crate::bidi::flip_icon(Image::from_bytes(
                             "arrow_left.svg",
                             include_bytes!("../resources/icons/arrow-left.svg"),
-                        )
+                        ))
                         .max_height(22.)
                         .sense(Sense::click())
                         .ui(ui)
@@ -203,7 +203,7 @@ impl Header {
                         services.navigate(RouteType::HomePage);
                     }
 
-                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                    ui.with_layout(crate::bidi::end_layout(Align::Center), |ui| {
                         ui.set_height(HEADER_HEIGHT);
                         let acc = services.ctx.accounts.get_selected_account();
                         let logged_in = acc.key.secret_key.is_some()
@@ -297,6 +297,7 @@ impl Header {
                                     ui.set_height(18.0);
                                     let edit = ui.add(
                                         TextEdit::singleline(&mut query)
+                                            .horizontal_align(crate::bidi::text_align())
                                             .frame(egui::Frame::NONE)
                                             .hint_text(
                                                 theme::semibold(crate::i18n::t("common.search"), theme::FONT_SIZE)

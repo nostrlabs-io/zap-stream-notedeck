@@ -80,11 +80,11 @@ pub fn render(ui: &mut Ui, services: &mut RouteServices<'_, '_>, data: &ChatData
                 for seg in msg.segments {
                     match seg {
                         Segment::Text(t) => {
-                            job.append(t, lead, text_format(ui, Color32::WHITE));
+                            job.append(&crate::bidi::visual(t), lead, text_format(ui, Color32::WHITE));
                             lead = 0.0;
                         }
                         Segment::Hashtag(t) => {
-                            job.append(t, lead, text_format(ui, PRIMARY));
+                            job.append(&crate::bidi::visual(t), lead, text_format(ui, PRIMARY));
                             lead = 0.0;
                         }
                         Segment::Url(u) => {

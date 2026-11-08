@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::OnceLock;
+use std::sync::{Mutex, OnceLock};
 
 type Table = HashMap<&'static str, &'static str>;
 
@@ -26,9 +26,10 @@ pub const LOCALES: &[(&str, &str)] = &[
     ("ru", "Русский"),
     ("uk", "Українська"),
     ("zh", "中文"),
+    ("ar", "العربية"),
 ];
 
-pub const RTL_PENDING: &[&str] = &["ar"];
+pub const RTL_LOCALES: &[&str] = &["ar"];
 
 static CURRENT: AtomicUsize = AtomicUsize::new(0);
 
@@ -55,6 +56,7 @@ fn source(code: &str) -> &'static str {
         "ru" => include_str!("../assets/i18n/ru.tsv"),
         "uk" => include_str!("../assets/i18n/uk.tsv"),
         "zh" => include_str!("../assets/i18n/zh.tsv"),
+        "ar" => include_str!("../assets/i18n/ar.tsv"),
         _ => "",
     }
 }
@@ -94,16 +96,36 @@ fn lookup(index: usize, key: &'static str) -> &'static str {
         .unwrap_or(key)
 }
 
+pub fn is_rtl() -> bool {
+    RTL_LOCALES.contains(&current_code())
+}
+
+fn visual_cache() -> &'static Mutex<HashMap<&'static str, &'static str>> {
+    static CACHE: OnceLock<Mutex<HashMap<&'static str, &'static str>>> = OnceLock::new();
+    CACHE.get_or_init(Default::default)
+}
+
 pub fn t(key: &'static str) -> &'static str {
-    lookup(CURRENT.load(Ordering::Relaxed), key)
+    let logical = lookup(CURRENT.load(Ordering::Relaxed), key);
+    if !is_rtl() {
+        return logical;
+    }
+    let mut cache = visual_cache().lock().unwrap();
+    cache
+        .entry(logical)
+        .or_insert_with(|| Box::leak(crate::bidi::visual(logical).into_owned().into_boxed_str()))
 }
 
 pub fn tf(key: &'static str, args: &[(&str, &str)]) -> String {
-    let mut out = t(key).to_string();
+    let mut out = lookup(CURRENT.load(Ordering::Relaxed), key).to_string();
     for (name, value) in args {
         out = out.replace(&format!("{{{name}}}"), value);
     }
-    out
+    if is_rtl() {
+        crate::bidi::visual(&out).into_owned()
+    } else {
+        out
+    }
 }
 
 pub fn detect_system_locale() -> Option<&'static str> {
@@ -191,13 +213,19 @@ mod tests {
     }
 
     #[test]
-    fn rtl_pending_locales_are_not_offered_or_detected() {
-        for code in RTL_PENDING {
-            assert!(LOCALES.iter().all(|(c, _)| c != code), "{code} is offered");
-            assert_eq!(locale_index(code), None);
-            assert_eq!(locale_index("ar_SA.UTF-8"), None);
-            assert!(locale_files().iter().any(|(c, _)| c == code));
-        }
+    fn arabic_is_offered_detected_and_rtl() {
+        assert!(LOCALES.iter().any(|(c, _)| *c == "ar"));
+        assert_eq!(locale_index("ar_SA.UTF-8"), locale_index("ar"));
+        assert!(RTL_LOCALES.iter().all(|c| locale_index(c).is_some()));
+    }
+
+    #[test]
+    fn arabic_strings_come_back_in_visual_order() {
+        let ar = locale_index("ar").unwrap();
+        let logical = lookup(ar, "home.live_now");
+        let visual = crate::bidi::visual(logical);
+        let reversed: Vec<&str> = logical.split(' ').rev().collect();
+        assert_eq!(visual.split(' ').collect::<Vec<_>>(), reversed);
     }
 
     #[test]

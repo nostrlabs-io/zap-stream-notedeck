@@ -122,7 +122,7 @@ pub fn paint_goal(ui: &mut Ui, title: &str, total: u64, target: u64) {
                     ui.add(egui::Label::new(theme::medium(title, 14.0).color(theme::TEXT)).truncate());
                 });
                 if let Some(t) = to_go {
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    ui.with_layout(crate::bidi::end_layout(egui::Align::Center), |ui| {
                         ui.label(t);
                     });
                 }

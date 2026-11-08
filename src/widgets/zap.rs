@@ -380,7 +380,7 @@ impl<'a> ZapButton<'a> {
                 for x in row {
                     ui.allocate_ui_with_layout(
                         vec2(cell, 0.0),
-                        egui::Layout::top_down(egui::Align::Min),
+                        egui::Layout::top_down(crate::bidi::text_align()),
                         |ui| {
                             let clicked = Button::new()
                                 .full_width()

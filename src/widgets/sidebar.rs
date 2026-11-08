@@ -70,7 +70,7 @@ impl Sidebar {
             .inner_margin(Margin::symmetric(10, 8))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                ui.horizontal(|ui| {
+                ui.with_layout(crate::bidi::start_layout(egui::Align::Center), |ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(10., 0.);
                     let uri = format!("bytes://nav-{}-{}.svg", item.label, item.active);
                     let svg = String::from_utf8_lossy(item.icon)

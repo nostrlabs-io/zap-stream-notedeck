@@ -103,7 +103,7 @@ impl<'a> StreamEvent<'a> {
             let response = response.on_hover_and_drag_cursor(CursorIcon::PointingHand);
             let mut open = response.clicked();
 
-            let title = theme::display_bold_text(self.event.title().unwrap_or(crate::i18n::t("common.untitled")), 19.0);
+            let title = theme::display_bold_text(crate::bidi::visual(self.event.title().unwrap_or(crate::i18n::t("common.untitled"))), 19.0);
             let t = ui
                 .add(Label::new(title).wrap_mode(TextWrapMode::Truncate).sense(Sense::click()))
                 .on_hover_and_drag_cursor(CursorIcon::PointingHand);

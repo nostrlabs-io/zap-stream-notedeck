@@ -2,6 +2,7 @@
 mod amber_android;
 #[cfg(target_os = "android")]
 mod android;
+mod bidi;
 mod android_window;
 pub mod app;
 mod chat_data;
