@@ -145,6 +145,17 @@ pub fn top_senders(zaps: &[Zap<'_>], limit: usize) -> Vec<([u8; 32], u64)> {
     list
 }
 
+pub fn top_receivers(zaps: &[Zap<'_>], limit: usize) -> Vec<([u8; 32], u64)> {
+    let mut by_receiver: std::collections::HashMap<[u8; 32], u64> = Default::default();
+    for z in zaps {
+        *by_receiver.entry(z.receiver).or_default() += z.amount / 1000;
+    }
+    let mut list: Vec<_> = by_receiver.into_iter().collect();
+    list.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    list.truncate(limit);
+    list
+}
+
 pub const SENDER_TOTALS_BATCH: usize = 6;
 
 #[derive(Default)]
@@ -225,6 +236,32 @@ mod tests {
         let zaps = vec![zap(1, 1_000), zap(2, 5_000), zap(1, 6_000), zap(3, 500)];
         let top = top_senders(&zaps, 2);
         assert_eq!(top, vec![([1; 32], 7), ([2; 32], 5)]);
+    }
+
+    fn zap_to(receiver: u8, msats: u64) -> Zap<'static> {
+        Zap {
+            receiver: [receiver; 32],
+            ..zap(1, msats)
+        }
+    }
+
+    #[test]
+    fn top_receivers_sums_by_streamer_and_keeps_five() {
+        let mut zaps = vec![zap_to(1, 3_000), zap_to(2, 9_000), zap_to(1, 8_000)];
+        for r in 3..=7 {
+            zaps.push(zap_to(r, r as u64 * 1_000));
+        }
+        let top = top_receivers(&zaps, 5);
+        assert_eq!(top.len(), 5);
+        assert_eq!(top[0], ([1; 32], 11));
+        assert_eq!(top[1], ([2; 32], 9));
+        assert_eq!(top[2], ([7; 32], 7));
+        assert!(top.iter().all(|(pk, _)| *pk != [3; 32] && *pk != [4; 32]));
+    }
+
+    #[test]
+    fn top_receivers_empty() {
+        assert!(top_receivers(&[], 5).is_empty());
     }
 
     #[test]

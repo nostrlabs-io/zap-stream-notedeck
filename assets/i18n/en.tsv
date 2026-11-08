@@ -225,3 +225,4 @@ settings.wallet_1tap=Connect with one tap using a wallet app that supports Nostr
 settings.wallet_1tap_button=Connect with wallet app
 settings.wallet_1tap_waiting=Waiting for the wallet app to approve...
 settings.wallet_1tap_timeout=The wallet app did not respond in time. Try again or paste a connection string.
+category.most_zapped=Most zapped streamers

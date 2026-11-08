@@ -5,9 +5,41 @@ use crate::stream_info::StreamInfo;
 use crate::sub::SubRef;
 use crate::theme::{self, MUTED, SURFACE, TEXT};
 use crate::widgets::{sub_or_poll, NostrWidget, StreamList};
+use crate::widgets::{Avatar, Pill};
+use crate::zap::Zap;
 use egui::{CursorIcon, Frame, Id, Margin, Response, RichText, ScrollArea, Sense, Ui};
 use nostrdb::{Filter, Note};
 use std::collections::HashSet;
+
+const TOP_ZAPPED_LIMIT: usize = 5;
+
+pub fn category_genres(tag: &str) -> &'static [&'static str] {
+    match tag.to_lowercase().as_str() {
+        "irl" => &["irl"],
+        "gaming" => &["gaming"],
+        "music" => &["music", "raido"],
+        "talk" => &["talk", "just-chatting"],
+        "art" => &["art"],
+        "gambling" => &["gambling", "casino", "slots"],
+        "science" => &["science", "tech", "technology"],
+        _ => &[],
+    }
+}
+
+pub fn category_cover(tag: &str) -> Option<(&'static str, &'static [u8])> {
+    match tag.to_lowercase().as_str() {
+        "irl" => Some(("bytes://category-irl.jpeg", include_bytes!("../../assets/category/irl.jpeg"))),
+        "gaming" => Some(("bytes://category-gaming.jpeg", include_bytes!("../../assets/category/gaming.jpeg"))),
+        "music" => Some(("bytes://category-music.jpeg", include_bytes!("../../assets/category/music.jpeg"))),
+        "talk" => Some(("bytes://category-talk.jpeg", include_bytes!("../../assets/category/talk.jpeg"))),
+        "art" => Some(("bytes://category-art.jpeg", include_bytes!("../../assets/category/art.jpeg"))),
+        _ => None,
+    }
+}
+
+fn stream_a_tags(streams: &[String]) -> Vec<String> {
+    streams.iter().map(|k| format!("30311:{k}")).collect()
+}
 
 pub const CATEGORIES: &[(&str, &str)] = &[
     ("irl", "IRL"),
@@ -100,6 +132,9 @@ pub struct ListingPage {
     kind: Listing,
     events: HashSet<NoteRef>,
     sub: Option<SubRef>,
+    zaps: HashSet<NoteRef>,
+    zap_sub: Option<SubRef>,
+    zap_streams: usize,
 }
 
 impl ListingPage {
@@ -108,7 +143,124 @@ impl ListingPage {
             kind,
             events: HashSet::new(),
             sub: None,
+            zaps: HashSet::new(),
+            zap_sub: None,
+            zap_streams: 0,
         }
+    }
+
+    fn category_header(&self, ui: &mut Ui, services: &mut RouteServices<'_, '_>, wide: bool) {
+        let Listing::Category(tag) = &self.kind else {
+            ui.label(theme::display(self.kind.title(), if wide { 40.0 } else { 30.0 }));
+            return;
+        };
+        let top = self.top_zapped(services);
+        let genres = category_genres(tag);
+        let cover = category_cover(tag);
+        let text = |ui: &mut Ui, services: &mut RouteServices<'_, '_>| {
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.y = 8.0;
+                ui.label(theme::display(self.kind.title(), if wide { 40.0 } else { 30.0 }));
+                if !genres.is_empty() {
+                    ui.horizontal_wrapped(|ui| {
+                        ui.spacing_mut().item_spacing.x = 4.0;
+                        for g in genres {
+                            ui.add(Pill::new(g));
+                        }
+                    });
+                }
+                if !top.is_empty() {
+                    ui.label(
+                        theme::medium(crate::i18n::t("category.most_zapped"), 14.0).color(theme::ZAP),
+                    );
+                    let max = ui.available_width();
+                    egui::ScrollArea::horizontal()
+                        .id_salt("category-top-zapped")
+                        .max_width(max)
+                        .auto_shrink([false, true])
+                        .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysHidden)
+                        .show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+                        ui.spacing_mut().item_spacing.x = 16.0;
+                        for (pk, sats) in &top {
+                            let profile = services.profile(pk);
+                            ui.horizontal(|ui| {
+                                ui.spacing_mut().item_spacing.x = 8.0;
+                                Avatar::from_profile(&profile).size(32.0).render(ui, services.ctx);
+                                ui.vertical(|ui| {
+                                    ui.spacing_mut().item_spacing.y = 0.0;
+                                    ui.label(
+                                        theme::semibold(crate::zap::format_sats(*sats as f32), 14.0)
+                                            .color(theme::ZAP),
+                                    );
+                                    let name = profile
+                                        .and_then(|p| p.name())
+                                        .unwrap_or(crate::i18n::t("common.anon"))
+                                        .to_string();
+                                    ui.label(theme::medium(name, 13.0).color(MUTED));
+                                });
+                            });
+                        }
+                    });
+                        });
+                }
+            });
+        };
+        ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = 16.0;
+            if let Some((uri, bytes)) = cover {
+                ui.add(
+                    egui::Image::from_bytes(uri, bytes)
+                        .fit_to_exact_size(egui::vec2(if wide { 150.0 } else { 96.0 }, if wide { 200.0 } else { 128.0 }))
+                        .corner_radius(theme::ROUNDING_DEFAULT),
+                );
+            }
+            text(ui, services);
+        });
+    }
+
+    fn top_zapped(&self, services: &mut RouteServices<'_, '_>) -> Vec<([u8; 32], u64)> {
+        let zaps: Vec<Zap> = self
+            .zaps
+            .iter()
+            .filter_map(|r| services.ctx.ndb.get_note_by_key(services.tx, r.key).ok())
+            .filter_map(|n| Zap::from_receipt(n).ok())
+            .collect();
+        crate::zap::top_receivers(&zaps, TOP_ZAPPED_LIMIT)
+    }
+
+    fn stream_keys(&self, services: &mut RouteServices<'_, '_>) -> Vec<String> {
+        let mut keys: Vec<String> = self
+            .events
+            .iter()
+            .filter_map(|e| services.ctx.ndb.get_note_by_key(services.tx, e.key).ok())
+            .map(|n| n.stream_key())
+            .collect();
+        keys.sort();
+        keys.dedup();
+        keys
+    }
+
+    fn update_zaps(&mut self, services: &mut RouteServices<'_, '_>) -> anyhow::Result<()> {
+        if !matches!(self.kind, Listing::Category(_)) {
+            return Ok(());
+        }
+        let keys = self.stream_keys(services);
+        if keys.is_empty() {
+            return Ok(());
+        }
+        if keys.len() != self.zap_streams {
+            self.zap_streams = keys.len();
+            self.zap_sub = None;
+        }
+        let a_tags = stream_a_tags(&keys);
+        let filter = Filter::new()
+            .kinds([9_735])
+            .tags(a_tags.iter().map(|s| s.as_str()), 'a')
+            .limit(5_000)
+            .build();
+        sub_or_poll(services.ctx, services.tx, &mut self.zaps, &mut self.zap_sub, vec![filter])
     }
 }
 
@@ -122,7 +274,7 @@ impl NostrWidget for ListingPage {
                     .inner_margin(Margin::symmetric(if wide { 0 } else { 16 }, 16))
                     .show(ui, |ui| {
                         ui.spacing_mut().item_spacing = egui::vec2(16.0, 14.0);
-                        ui.label(theme::display(self.kind.title(), if wide { 40.0 } else { 30.0 }));
+                        self.category_header(ui, services, wide);
                         let events: Vec<Note> = self
                             .events
                             .iter()
@@ -150,7 +302,8 @@ impl NostrWidget for ListingPage {
             &mut self.events,
             &mut self.sub,
             self.kind.filters(),
-        )
+        )?;
+        self.update_zaps(services)
     }
 }
 
