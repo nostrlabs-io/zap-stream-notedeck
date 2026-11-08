@@ -6,6 +6,7 @@ use crate::route::RouteServices;
 use crate::sub::SubRef;
 use crate::stream_info::StreamInfo;
 use crate::widgets::chat_zap::ChatZap;
+use crate::widgets::zap::ZapButton;
 use crate::widgets::{
     chat_badge, chat_message, chat_raid, chat_reactions, chat_timeout, emoji_picker, mute_button, report,
     sub_or_poll, NostrWidget,
@@ -317,6 +318,12 @@ impl Chat {
             author: state.author,
             relays,
         });
+        let message_note = services.ctx.ndb.get_note_by_id(services.tx, &state.id).ok();
+        let stream_coord: Option<nostr::prelude::Coordinate> = self.link.clone().try_into().ok();
+        let can_zap = services
+            .profile(&state.author)
+            .and_then(|p| p.lud16())
+            .is_some_and(|l| !l.is_empty());
         let mut close = false;
         let mut react = None;
         let mut timeout = None;
@@ -334,6 +341,11 @@ impl Chat {
                 if services.me().is_some() && ui.button("😀").clicked() {
                     state.picker = !state.picker;
                     state.timeouts = false;
+                }
+                if can_zap {
+                    if let Some(note) = message_note.as_ref() {
+                        ZapButton::message(note, stream_coord.clone()).render(ui, services);
+                    }
                 }
                 if is_moderator && ui.button(crate::i18n::t("chat.timeout")).clicked() {
                     state.timeouts = !state.timeouts;

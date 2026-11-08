@@ -11,7 +11,7 @@ use anyhow::{anyhow, bail};
 use egui::text::{LayoutJob, TextWrapping};
 use egui::{vec2, Frame, Grid, Response, RichText, TextFormat, TextWrapMode, Ui, Widget};
 use lnurl::pay::{LnURLPayInvoice, PayResponse};
-use nostr::prelude::{hex, ZapRequestData};
+use nostr::prelude::{hex, Coordinate, ZapRequestData};
 use nostr::{serde_json, EventBuilder, JsonUtil, Kind, PublicKey, Tag, Url};
 use nostrdb::Note;
 use notedeck::get_current_wallet;
@@ -24,13 +24,19 @@ use std::task::Poll;
 pub enum ZapTarget<'a> {
     PublicKey { pubkey: [u8; 32] },
     Event { event: &'a Note<'a> },
+    Message {
+        event: &'a Note<'a>,
+        stream: Option<Coordinate>,
+    },
 }
 
 impl Display for ZapTarget<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             ZapTarget::PublicKey { pubkey } => write!(f, "{}", hex::encode(pubkey)),
-            ZapTarget::Event { event } => write!(f, "{}", hex::encode(event.id())),
+            ZapTarget::Event { event } | ZapTarget::Message { event, .. } => {
+                write!(f, "{}", hex::encode(event.id()))
+            }
         }
     }
 }
@@ -78,12 +84,18 @@ impl<'a> ZapButton<'a> {
         }
     }
 
+    pub fn message(event: &'a Note<'a>, stream: Option<Coordinate>) -> Self {
+        Self {
+            target: ZapTarget::Message { event, stream },
+        }
+    }
+
     pub fn render(self, ui: &mut Ui, services: &mut RouteServices) -> Response {
         let can_sign = services.can_sign();
         let resp = Button::pill()
             .disabled(!can_sign)
             .text(ui, crate::i18n::t("button.zap"));
-        let open_id = egui::Id::new("zap_modal_open");
+        let open_id = egui::Id::new(("zap_modal_open", self.target.to_string()));
         if !can_sign {
             return resp.on_hover_text(crate::i18n::t("zap.login_required"));
         }
@@ -103,7 +115,7 @@ impl<'a> ZapButton<'a> {
             return resp;
         }
 
-        let modal = egui::Modal::new(egui::Id::new("zapper")).frame(
+        let modal = egui::Modal::new(egui::Id::new(("zapper", self.target.to_string()))).frame(
             Frame::new()
                 .fill(crate::theme::SURFACE_LOW)
                 .stroke(egui::Stroke::new(1.0, crate::theme::SURFACE))
@@ -117,6 +129,7 @@ impl<'a> ZapButton<'a> {
             let pubkey = match &self.target {
                 ZapTarget::PublicKey { pubkey } => pubkey,
                 ZapTarget::Event { event } => event.host(),
+                ZapTarget::Message { event, .. } => event.pubkey(),
             };
 
             let zap_state = services.get("zap_state").unwrap_or(ZapState::NotStarted);
@@ -341,6 +354,7 @@ impl<'a> ZapButton<'a> {
                 let host = event.host();
                 services.profile(host).and_then(|p| p.name())
             }
+            ZapTarget::Message { event, .. } => services.profile(event.pubkey()).and_then(|p| p.name()),
         };
         let fallback_name = self.target.to_string();
         let target_name = target_name.unwrap_or(&fallback_name);
@@ -452,23 +466,26 @@ impl<'a> ZapButton<'a> {
         if relays.is_empty() {
             bail!("{}", crate::i18n::t("error.no_relays"));
         }
-        let mut req = ZapRequestData::new(PublicKey::from_slice(pubkey)?, relays)
-            .message(zap_comment)
-            .amount(amount);
-        match &self.target {
-            ZapTarget::Event { event } => {
-                req.event_coordinate = Some(
-                    NostrLink::from_note(event)
-                        .try_into()
-                        .map_err(|e| anyhow!("{:?}", e))?,
-                );
-                req.event_id = crate::stream_info::StreamInfo::goal(*event)
-                    .map(nostr::EventId::from_byte_array);
+        let req_tags: Vec<Tag> = match &self.target {
+            ZapTarget::Message { event, stream } => {
+                message_zap_tags(pubkey, *event.id(), stream.clone(), relays, zap_comment, amount)?
             }
-            _ => {}
+            target => {
+                let mut req = ZapRequestData::new(PublicKey::from_slice(pubkey)?, relays)
+                    .message(zap_comment)
+                    .amount(amount);
+                if let ZapTarget::Event { event } = target {
+                    req.event_coordinate = Some(
+                        NostrLink::from_note(event)
+                            .try_into()
+                            .map_err(|e| anyhow!("{:?}", e))?,
+                    );
+                    req.event_id = crate::stream_info::StreamInfo::goal(*event)
+                        .map(nostr::EventId::from_byte_array);
+                }
+                req.into()
+            }
         };
-
-        let req_tags: Vec<Tag> = req.into();
         let Some(signer) = services.signer() else {
             bail!("{}", crate::i18n::t("error.not_logged_in"))
         };
@@ -493,6 +510,22 @@ impl<'a> ZapButton<'a> {
     }
 }
 
+pub fn message_zap_tags(
+    author: &[u8; 32],
+    message_id: [u8; 32],
+    stream: Option<Coordinate>,
+    relays: Vec<Url>,
+    comment: &str,
+    amount: u64,
+) -> anyhow::Result<Vec<Tag>> {
+    let mut req = ZapRequestData::new(PublicKey::from_slice(author)?, relays)
+        .message(comment)
+        .amount(amount);
+    req.event_id = Some(nostr::EventId::from_byte_array(message_id));
+    req.event_coordinate = stream;
+    Ok(req.into())
+}
+
 fn qr_code(ui: &mut Ui, data: &[u8], size: f32) {
     let Ok(code) = qrcode::QrCode::new(data) else {
         return;
@@ -514,5 +547,24 @@ fn qr_code(ui: &mut Ui, data: &[u8], size: f32) {
                 egui::Color32::BLACK,
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn message_zap_request_carries_e_and_a_tags() {
+        let author = nostr::Keys::generate().public_key().to_bytes();
+        let stream_author = nostr::Keys::generate().public_key();
+        let coord = Coordinate::new(Kind::from_u16(30311), stream_author).identifier("abc");
+        let relays = vec![Url::parse("wss://relay.example.com").unwrap()];
+        let tags = message_zap_tags(&author, [9u8; 32], Some(coord.clone()), relays, "hi", 21).unwrap();
+        let v: Vec<Vec<String>> = tags.iter().map(|t| t.clone().to_vec()).collect();
+        assert!(v.contains(&vec!["e".to_string(), hex::encode([9u8; 32])]));
+        assert!(v.contains(&vec!["a".to_string(), coord.to_string()]));
+        assert!(v.contains(&vec!["p".to_string(), hex::encode(author)]));
+        assert!(v.iter().any(|t| t[0] == "amount" && t[1] == "21"));
     }
 }
