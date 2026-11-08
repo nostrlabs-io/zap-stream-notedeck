@@ -217,8 +217,11 @@ impl<'a, 'ctx> RouteServices<'a, 'ctx> {
         }
         let hex = account.key.pubkey.hex();
         let dir = self.ctx.path.path(notedeck::DataPathType::Setting);
-        let package = crate::signer::amber_package(&dir, &hex)?;
         let pubkey = nostr::PublicKey::from_slice(account.key.pubkey.bytes()).ok()?;
+        if let Some((uri, app_keys)) = crate::bunker::bunker_account(&dir, &hex) {
+            return Some(Signer::Bunker { pubkey, uri, app_keys });
+        }
+        let package = crate::signer::amber_package(&dir, &hex)?;
         Some(Signer::Amber { pubkey, package })
     }
 

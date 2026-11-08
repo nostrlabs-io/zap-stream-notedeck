@@ -36,6 +36,7 @@ impl std::error::Error for SignError {}
 pub enum Signer {
     Local(Keys),
     Amber { pubkey: PublicKey, package: String },
+    Bunker { pubkey: PublicKey, uri: String, app_keys: Keys },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -85,6 +86,10 @@ pub fn set_repaint(ctx: &egui::Context) {
     if slot.is_none() {
         *slot = Some(ctx.clone());
     }
+}
+
+pub fn notify_repaint() {
+    notify();
 }
 
 fn notify() {
@@ -351,7 +356,7 @@ impl Signer {
     pub fn pubkey(&self) -> PublicKey {
         match self {
             Signer::Local(keys) => keys.public_key(),
-            Signer::Amber { pubkey, .. } => *pubkey,
+            Signer::Amber { pubkey, .. } | Signer::Bunker { pubkey, .. } => *pubkey,
         }
     }
 
@@ -369,6 +374,19 @@ impl Signer {
                     .sign_with_keys(keys)
                     .map_err(|e| SignError::Failed(e.to_string())),
             ),
+            Signer::Bunker { pubkey, uri, app_keys } => {
+                let mut unsigned = builder.build(*pubkey);
+                unsigned.ensure_id();
+                let (completer, handle) = SignHandle::pending();
+                crate::bunker::sign(
+                    *pubkey,
+                    uri.clone(),
+                    app_keys.clone(),
+                    unsigned,
+                    move |r| completer.complete(r),
+                );
+                handle
+            }
             Signer::Amber { pubkey, package } => {
                 let mut unsigned = builder.build(*pubkey);
                 unsigned.ensure_id();

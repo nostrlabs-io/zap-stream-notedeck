@@ -371,6 +371,7 @@ impl notedeck::App for ZapStreamApp {
                     RouteAction::Logout(pk) => {
                         let dir = ctx.path.path(notedeck::DataPathType::Setting);
                         crate::signer::forget_amber(&dir, &pk.hex());
+                        crate::bunker::forget_bunker(&dir, &pk.hex());
                         ctx.remove_account(&pk);
                         self.history.clear();
                         self.open_route(RouteType::HomePage);

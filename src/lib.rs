@@ -9,6 +9,7 @@ mod chat_events;
 mod chat_model;
 mod chat_text;
 mod blossom;
+pub mod bunker;
 mod contacts;
 mod deep_link;
 mod frame_stats;

@@ -24,6 +24,7 @@ pub struct LoginPage {
     saved: bool,
     copied: bool,
     amber: Option<std::sync::mpsc::Receiver<Result<(nostr::PublicKey, String), crate::signer::SignError>>>,
+    bunker: Option<std::sync::mpsc::Receiver<Result<crate::bunker::BunkerLogin, crate::signer::SignError>>>,
 }
 
 impl LoginPage {
@@ -38,6 +39,7 @@ impl LoginPage {
             saved: false,
             copied: false,
             amber: None,
+            bunker: None,
         };
         if let Ok(step) = std::env::var("ZAP_STREAM_LOGIN_STEP") {
             page.keys = Some(nostr::Keys::generate());
@@ -98,7 +100,37 @@ impl LoginPage {
         }
     }
 
+    fn poll_bunker(&mut self, services: &mut RouteServices<'_, '_>) {
+        let Some(rx) = &self.bunker else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(Ok(login)) => {
+                self.bunker = None;
+                let dir = services.ctx.path.path(notedeck::DataPathType::Setting);
+                crate::bunker::remember_bunker(&dir, &login);
+                let kp = enostr::Keypair::only_pubkey(enostr::Pubkey::new(login.pubkey.to_bytes()));
+                self.add_and_select(services, kp);
+            }
+            Ok(Err(e)) => {
+                self.bunker = None;
+                self.error = Some(e.to_string());
+            }
+            Err(std::sync::mpsc::TryRecvError::Empty) => {
+                services.egui.request_repaint_after(std::time::Duration::from_millis(250));
+            }
+            Err(std::sync::mpsc::TryRecvError::Disconnected) => self.bunker = None,
+        }
+    }
+
     fn try_login(&mut self, services: &mut RouteServices<'_, '_>) {
+        if self.key.trim().starts_with("bunker://") {
+            if self.bunker.is_none() {
+                self.error = None;
+                self.bunker = Some(crate::bunker::begin_login(&self.key));
+            }
+            return;
+        }
         match parse_key(&self.key) {
             Some(kp) => self.add_and_select(services, kp),
             None => self.error = Some(crate::i18n::t("login.invalid_key").to_string()),
@@ -278,10 +310,13 @@ impl LoginPage {
         Self::title(ui, crate::i18n::t("login.with_key"));
         Self::body(ui, crate::i18n::t("login.with_key_body"));
         Self::label(ui, crate::i18n::t("login.key_label"));
-        Self::field(ui, &mut self.key, "nsec1... or npub1...", true);
-        let go = Self::primary(ui, crate::i18n::t("button.login"), !self.key.trim().is_empty());
+        Self::field(ui, &mut self.key, "nsec1... / npub1... / bunker://...", true);
+        let go = Self::primary(ui, crate::i18n::t("button.login"), !self.key.trim().is_empty() && self.bunker.is_none());
         if go || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
             self.try_login(services);
+        }
+        if self.bunker.is_some() {
+            ui.label(theme::medium(crate::i18n::t("login.bunker_waiting"), 14.0).color(theme::MUTED));
         }
         if let Some(e) = &self.error {
             ui.label(RichText::new(e).color(Color32::from_rgb(255, 99, 99)));
@@ -428,6 +463,7 @@ impl NostrWidget for LoginPage {
                         }
 
                         self.poll_amber(services);
+                        self.poll_bunker(services);
                         match self.step {
                             Step::Welcome => self.step_welcome(ui),
                             Step::PasteKey => self.step_paste(ui, services),
