@@ -221,3 +221,7 @@ settings.delete_confirm_body=This cannot be undone. Your key will be removed fro
 settings.delete_confirm=Yes, delete my account
 settings.deleting=Deleting your account...
 settings.delete_login=Log in with a private key to delete your account
+settings.wallet_1tap=Connect with one tap using a wallet app that supports Nostr Wallet Connect.
+settings.wallet_1tap_button=Connect with wallet app
+settings.wallet_1tap_waiting=Waiting for the wallet app to approve...
+settings.wallet_1tap_timeout=The wallet app did not respond in time. Try again or paste a connection string.

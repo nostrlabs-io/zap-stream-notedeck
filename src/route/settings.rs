@@ -22,6 +22,7 @@ pub struct SettingsPage {
     status: Option<Result<String, String>>,
     upload: Option<mpsc::Receiver<Result<String, String>>>,
     wallet_uri: String,
+    nwa: Option<mpsc::Receiver<Result<String, String>>>,
     relay_input: String,
     broadcast: broadcast::Broadcast,
     delete_step: DeleteStep,
@@ -44,6 +45,7 @@ impl SettingsPage {
             status: None,
             upload: None,
             wallet_uri: String::new(),
+            nwa: None,
             relay_input: String::new(),
             broadcast: broadcast::Broadcast::default(),
             delete_step: DeleteStep::Idle,
@@ -430,6 +432,20 @@ impl SettingsPage {
                 }
             }
             None => {
+                self.poll_nwa(services);
+                Self::body(ui, crate::i18n::t("settings.wallet_1tap"));
+                if self.nwa.is_some() {
+                    ui.label(theme::medium(crate::i18n::t("settings.wallet_1tap_waiting"), 14.0).color(theme::MUTED));
+                    ui.ctx().request_repaint_after(Duration::from_millis(500));
+                } else if Button::primary()
+                    .padding(Margin::symmetric(12, 12))
+                    .radius(255)
+                    .full_width()
+                    .text(ui, crate::i18n::t("settings.wallet_1tap_button"))
+                    .clicked()
+                {
+                    self.start_nwa(ui.ctx());
+                }
                 Self::body(ui, crate::i18n::t("settings.wallet_paste"));
                 Self::label(ui, "nostr+walletconnect://");
                 Self::field(ui, &mut self.wallet_uri, "nostr+walletconnect://...", true);
@@ -456,6 +472,45 @@ impl SettingsPage {
                     }
                 }
             }
+        }
+    }
+
+    fn start_nwa(&mut self, ctx: &egui::Context) {
+        let (pending, url) = crate::nwa::Pending::start();
+        let (tx, rx) = mpsc::channel();
+        let repaint = ctx.clone();
+        self.status = None;
+        self.nwa = Some(rx);
+        tokio::spawn(async move {
+            let _ = tx.send(pending.wait().await);
+            repaint.request_repaint();
+        });
+        crate::android_window::open_url(ctx, &url);
+    }
+
+    fn poll_nwa(&mut self, services: &mut RouteServices<'_, '_>) {
+        let Some(rx) = &self.nwa else {
+            return;
+        };
+        match rx.try_recv() {
+            Ok(Ok(uri)) => {
+                self.nwa = None;
+                match Wallet::new(uri) {
+                    Ok(w) => {
+                        services
+                            .ctx
+                            .accounts
+                            .update_current_account(|a| a.wallet = Some(ZapWallet::new(w)));
+                    }
+                    Err(e) => self.status = Some(Err(e.to_string())),
+                }
+            }
+            Ok(Err(e)) => {
+                self.nwa = None;
+                self.status = Some(Err(e));
+            }
+            Err(mpsc::TryRecvError::Empty) => {}
+            Err(mpsc::TryRecvError::Disconnected) => self.nwa = None,
         }
     }
 

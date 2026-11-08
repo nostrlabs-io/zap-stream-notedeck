@@ -12,6 +12,7 @@ mod blossom;
 mod contacts;
 mod deep_link;
 mod frame_stats;
+mod nwa;
 mod hls;
 mod i18n;
 mod relay_health;
