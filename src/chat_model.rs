@@ -163,6 +163,89 @@ pub fn message_emoji_tags(msg: &str, picked: &HashMap<String, String>) -> Vec<Ve
         .collect()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Trigger {
+    Mention,
+    Emoji,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Token {
+    pub trigger: Trigger,
+    pub start: usize,
+    pub end: usize,
+    pub query: String,
+}
+
+pub fn active_token(text: &str, cursor: usize) -> Option<Token> {
+    let chars: Vec<char> = text.chars().collect();
+    let end = cursor.min(chars.len());
+    let mut start = end;
+    while start > 0 && !chars[start - 1].is_whitespace() {
+        start -= 1;
+    }
+    if start == end {
+        return None;
+    }
+    let trigger = match chars[start] {
+        '@' => Trigger::Mention,
+        ':' => Trigger::Emoji,
+        _ => return None,
+    };
+    let query: String = chars[start + 1..end].iter().collect();
+    let invalid = match trigger {
+        Trigger::Mention => query.contains('@'),
+        Trigger::Emoji => query.is_empty() || query.contains(':'),
+    };
+    if invalid {
+        return None;
+    }
+    Some(Token { trigger, start, end, query })
+}
+
+pub fn replace_token(text: &str, token: &Token, replacement: &str) -> (String, usize) {
+    let chars: Vec<char> = text.chars().collect();
+    let mut out: String = chars[..token.start].iter().collect();
+    out.push_str(replacement);
+    let cursor = out.chars().count();
+    out.extend(chars[token.end.min(chars.len())..].iter());
+    (out, cursor)
+}
+
+pub fn filter_emoji<'a>(custom: &'a [(String, String)], query: &str, limit: usize) -> Vec<&'a (String, String)> {
+    let q = query.to_lowercase();
+    custom
+        .iter()
+        .filter(|(n, _)| n.to_lowercase().contains(&q))
+        .take(limit)
+        .collect()
+}
+
+pub fn message_mention_tags(msg: &str, mentions: &HashMap<String, Pubkey>) -> Vec<Vec<String>> {
+    let mut found: Vec<(&String, &Pubkey)> = mentions
+        .iter()
+        .filter(|(npub, _)| msg.contains(&format!("nostr:{}", npub)))
+        .collect();
+    found.sort();
+    found
+        .into_iter()
+        .map(|(_, pk)| {
+            let hex: String = pk.iter().map(|b| format!("{:02x}", b)).collect();
+            vec!["p".to_string(), hex]
+        })
+        .collect()
+}
+
+pub fn message_tags(
+    msg: &str,
+    picked: &HashMap<String, String>,
+    mentions: &HashMap<String, Pubkey>,
+) -> Vec<Vec<String>> {
+    let mut tags = message_emoji_tags(msg, picked);
+    tags.extend(message_mention_tags(msg, mentions));
+    tags
+}
+
 pub fn is_auto_raid(created_at: u64, now: u64) -> bool {
     created_at.abs_diff(now) < 60
 }
@@ -329,6 +412,63 @@ mod tests {
             vec!["a".into(), "30311:aa:live".into()],
         ];
         assert_eq!(emoji_set_refs(&tags), vec!["30030:aa:set".to_string()]);
+    }
+
+    #[test]
+    fn token_detects_last_mention_before_cursor() {
+        let t = active_token("hi @al", 6).unwrap();
+        assert_eq!(t.trigger, Trigger::Mention);
+        assert_eq!((t.start, t.end, t.query.as_str()), (3, 6, "al"));
+        assert_eq!(active_token("hi @", 4).unwrap().query, "");
+        assert!(active_token("hi @al there", 12).is_none());
+        assert_eq!(active_token("@al later", 3).unwrap().query, "al");
+    }
+
+    #[test]
+    fn token_detects_emoji_word_and_rejects_closed_or_empty() {
+        let t = active_token("go :fi", 6).unwrap();
+        assert_eq!(t.trigger, Trigger::Emoji);
+        assert_eq!(t.query, "fi");
+        assert!(active_token("go :", 4).is_none());
+        assert!(active_token("go :fire:", 9).is_none());
+        assert!(active_token("12:30", 5).is_none());
+        assert!(active_token("plain", 5).is_none());
+    }
+
+    #[test]
+    fn replace_token_swaps_and_places_cursor() {
+        let t = active_token("a :fi b", 5).unwrap();
+        let (s, c) = replace_token("a :fi b", &t, ":fire: ");
+        assert_eq!(s, "a :fire:  b");
+        assert_eq!(c, 9);
+    }
+
+    #[test]
+    fn emoji_filter_matches_name_case_insensitive() {
+        let c = vec![("Fire".to_string(), "u1".to_string()), ("cat".to_string(), "u2".to_string())];
+        assert_eq!(filter_emoji(&c, "fi", 8).len(), 1);
+        assert_eq!(filter_emoji(&c, "", 1).len(), 1);
+    }
+
+    #[test]
+    fn send_tags_cover_used_emoji_and_mentions_only() {
+        let picked = HashMap::from([
+            ("fire".to_string(), "u1".to_string()),
+            ("cat".to_string(), "u2".to_string()),
+        ]);
+        let mentions = HashMap::from([
+            ("npub1aaa".to_string(), pk(1)),
+            ("npub1bbb".to_string(), pk(2)),
+        ]);
+        let tags = message_tags("yo :fire: nostr:npub1bbb", &picked, &mentions);
+        assert_eq!(
+            tags,
+            vec![
+                vec!["emoji".to_string(), "fire".into(), "u1".into()],
+                vec!["p".to_string(), "02".repeat(32)],
+            ]
+        );
+        assert!(message_tags("plain", &picked, &mentions).is_empty());
     }
 
     #[test]
