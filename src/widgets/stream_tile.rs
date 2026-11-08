@@ -76,7 +76,7 @@ impl<'a> StreamEvent<'a> {
     }
 
     pub fn render(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) -> Response {
-        ui.vertical(|ui| {
+        crate::bidi::vertical(ui, |ui| {
             ui.spacing_mut().item_spacing = Vec2::new(0., 10.);
 
             let host = self.event.host();

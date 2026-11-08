@@ -189,9 +189,11 @@ impl<'a> StreamTitle<'a> {
         {
             if !summary.is_empty() {
                 ui.with_layout(egui::Layout::top_down(crate::bidi::text_align()), |ui| {
-                    ui.add(
-                        Label::new(RichText::new(crate::bidi::visual(summary)).color(TEXT_SOFT))
-                            .wrap_mode(TextWrapMode::Wrap),
+                    crate::bidi::wrapped_label(
+                        ui,
+                        summary,
+                        egui::TextStyle::Body.resolve(ui.style()),
+                        TEXT_SOFT,
                     );
                 });
             }

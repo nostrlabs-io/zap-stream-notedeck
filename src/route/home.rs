@@ -195,7 +195,7 @@ impl HomePage {
         total: u64,
         top: &[([u8; 32], u64)],
     ) {
-        ui.vertical(|ui| {
+        crate::bidi::vertical(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 10.0;
             ui.label(theme::semibold(crate::i18n::t("home.zapped_24h"), 15.0));
             ui.horizontal(|ui| {

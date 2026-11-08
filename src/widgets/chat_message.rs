@@ -60,7 +60,7 @@ pub fn render(ui: &mut Ui, services: &mut RouteServices<'_, '_>, data: &ChatData
                 link: NostrLink::profile(msg.author),
             });
         }
-        ui.vertical(|ui| {
+        crate::bidi::vertical(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
         let name = profile
                     .and_then(|p| p.name().or(p.display_name()))

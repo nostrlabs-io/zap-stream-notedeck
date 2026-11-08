@@ -15,7 +15,7 @@ pub struct Sidebar {
 
 impl Sidebar {
     pub fn render(&self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
-        ui.vertical(|ui| {
+        crate::bidi::vertical(ui, |ui| {
             ui.set_width(SIDEBAR_WIDTH - 24.0);
             ui.spacing_mut().item_spacing.y = 4.0;
             self.rows(ui, services);
@@ -70,7 +70,7 @@ impl Sidebar {
             .inner_margin(Margin::symmetric(10, 8))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                ui.with_layout(crate::bidi::start_layout(egui::Align::Center), |ui| {
+                ui.horizontal(|ui| {
                     ui.spacing_mut().item_spacing = Vec2::new(10., 0.);
                     let uri = format!("bytes://nav-{}-{}.svg", item.label, item.active);
                     let svg = String::from_utf8_lossy(item.icon)

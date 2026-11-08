@@ -169,7 +169,7 @@ impl ListingPage {
         let genres = category_genres(tag);
         let cover = category_cover(tag);
         let text = |ui: &mut Ui, services: &mut RouteServices<'_, '_>| {
-            ui.vertical(|ui| {
+            crate::bidi::vertical(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 8.0;
                 ui.label(theme::display(self.kind.title(), if wide { 40.0 } else { 30.0 }));
                 if !genres.is_empty() {
@@ -199,7 +199,7 @@ impl ListingPage {
                             ui.horizontal(|ui| {
                                 ui.spacing_mut().item_spacing.x = 8.0;
                                 Avatar::from_profile(&profile).size(32.0).render(ui, services.ctx);
-                                ui.vertical(|ui| {
+                                crate::bidi::vertical(ui, |ui| {
                                     ui.spacing_mut().item_spacing.y = 0.0;
                                     ui.label(
                                         theme::semibold(crate::zap::format_sats(*sats as f32), 14.0)
@@ -362,7 +362,7 @@ impl NostrWidget for CategoriesPage {
                                             ui.set_width(w - 32.0);
                                             ui.set_max_width(w - 32.0);
                                             ui.set_height(56.0);
-                                            ui.vertical(|ui| {
+                                            crate::bidi::vertical(ui, |ui| {
                                                 ui.label(theme::display(category_label(tag, name), 20.0).color(TEXT));
                                                 let noun = if count == 1 { crate::i18n::t("listing.stream_one") } else { crate::i18n::t("listing.stream_many") };
                                                 ui.label(

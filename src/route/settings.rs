@@ -120,7 +120,7 @@ impl SettingsPage {
             .inner_margin(Margin::symmetric(16, 12))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                ui.vertical(|ui| {
+                crate::bidi::vertical(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 2.0;
                     ui.label(theme::semibold(title, 16.0).color(theme::TEXT));
                     ui.label(theme::medium(subtitle, 14.0).color(theme::MUTED));
@@ -218,8 +218,8 @@ impl SettingsPage {
             ui.set_width(width);
             ui.spacing_mut().item_spacing.y = 10.0;
             ui.label(theme::semibold(crate::i18n::t("settings.delete_confirm_title"), 18.0));
-            Self::body(ui, crate::i18n::t("settings.delete_explain"));
-            Self::body(ui, crate::i18n::t("settings.delete_relays"));
+            Self::body(ui, crate::i18n::tl("settings.delete_explain"));
+            Self::body(ui, crate::i18n::tl("settings.delete_relays"));
             ui.label(
                 theme::semibold(crate::i18n::t("settings.delete_confirm_body"), 14.0).color(ERROR),
             );
@@ -331,7 +331,7 @@ impl SettingsPage {
             Avatar::new_optional(Some(self.form.picture.as_str()).filter(|p| !p.is_empty()))
                 .size(96.)
                 .render(ui, services.ctx);
-            ui.vertical(|ui| {
+            crate::bidi::vertical(ui, |ui| {
                 let uploading = self.upload.is_some();
                 let label = if uploading { crate::i18n::t("settings.uploading") } else { crate::i18n::t("settings.upload_picture") };
                 if Button::new().disabled(uploading).text(ui, label).clicked() && !uploading {
@@ -434,7 +434,7 @@ impl SettingsPage {
             }
             None => {
                 self.poll_nwa(services);
-                Self::body(ui, crate::i18n::t("settings.wallet_1tap"));
+                Self::body(ui, crate::i18n::tl("settings.wallet_1tap"));
                 if self.nwa.is_some() {
                     ui.label(theme::medium(crate::i18n::t("settings.wallet_1tap_waiting"), 14.0).color(theme::MUTED));
                     ui.ctx().request_repaint_after(Duration::from_millis(500));
@@ -447,7 +447,7 @@ impl SettingsPage {
                 {
                     self.start_nwa(ui.ctx());
                 }
-                Self::body(ui, crate::i18n::t("settings.wallet_paste"));
+                Self::body(ui, crate::i18n::tl("settings.wallet_paste"));
                 Self::label(ui, "nostr+walletconnect://");
                 Self::field(ui, &mut self.wallet_uri, "nostr+walletconnect://...", true);
                 self.status_line(ui);
@@ -516,10 +516,7 @@ impl SettingsPage {
     }
 
     fn body(ui: &mut Ui, text: &str) {
-        ui.add(
-            egui::Label::new(RichText::new(text).size(15.0).color(theme::TEXT_SOFT))
-                .wrap_mode(egui::TextWrapMode::Wrap),
-        );
+        crate::bidi::wrapped_label(ui, text, egui::FontId::proportional(15.0), theme::TEXT_SOFT);
     }
 
     fn publish_relays(&mut self, services: &mut RouteServices<'_, '_>, tags: Vec<Vec<String>>) {
@@ -539,7 +536,7 @@ impl SettingsPage {
         let tags = Self::own_note_tags(services, 10_002);
         let current = crate::relay_list::relays(&tags);
         if current.is_empty() {
-            Self::body(ui, crate::i18n::t("settings.relays_default"));
+            Self::body(ui, crate::i18n::tl("settings.relays_default"));
             for r in crate::relays::DEFAULT_RELAYS {
                 ui.label(RichText::new(*r).monospace().size(14.0).color(theme::MUTED));
             }

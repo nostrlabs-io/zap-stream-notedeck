@@ -96,6 +96,69 @@ pub fn flip_icon(image: egui::Image<'static>) -> egui::Image<'static> {
     }
 }
 
+pub fn vertical<R>(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> R) -> egui::InnerResponse<R> {
+    ui.scope_builder(
+        egui::UiBuilder::new().layout(egui::Layout::top_down(text_align())),
+        add,
+    )
+}
+
+pub fn visual_rows(rows: &[String]) -> String {
+    rows.iter()
+        .map(|r| visual(r.trim_end()).into_owned())
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
+pub fn wrap_logical(text: &str, width: f32, measure: &mut dyn FnMut(&str) -> f32) -> Vec<String> {
+    let mut rows = Vec::new();
+    for paragraph in text.split('\n') {
+        let mut line = String::new();
+        for word in paragraph.split(' ') {
+            let candidate = if line.is_empty() {
+                word.to_string()
+            } else {
+                format!("{line} {word}")
+            };
+            if !line.is_empty() && measure(&visual(&candidate)) > width {
+                rows.push(std::mem::take(&mut line));
+                line = word.to_string();
+            } else {
+                line = candidate;
+            }
+        }
+        rows.push(line);
+    }
+    rows
+}
+
+pub fn wrap_rows(ctx: &egui::Context, text: &str, font: egui::FontId, width: f32) -> String {
+    let mut measure = |s: &str| {
+        ctx.fonts_mut(|f| {
+            f.layout_no_wrap(s.to_string(), font.clone(), egui::Color32::WHITE)
+                .size()
+                .x
+        })
+    };
+    visual_rows(&wrap_logical(text, width, &mut measure))
+}
+
+pub fn wrapped_label(ui: &mut egui::Ui, text: &str, font: egui::FontId, color: egui::Color32) -> egui::Response {
+    if crate::i18n::is_rtl() && is_rtl_text(text) {
+        let shown = wrap_rows(ui.ctx(), text, font.clone(), ui.available_width());
+        ui.add(
+            egui::Label::new(egui::RichText::new(shown).font(font).color(color))
+                .wrap_mode(egui::TextWrapMode::Extend)
+                .halign(egui::Align::Max),
+        )
+    } else {
+        ui.add(
+            egui::Label::new(egui::RichText::new(text).font(font).color(color))
+                .wrap_mode(egui::TextWrapMode::Wrap),
+        )
+    }
+}
+
 pub fn is_rtl_text(text: &str) -> bool {
     !text.is_ascii() && BidiInfo::new(text, None).has_rtl()
 }
@@ -142,6 +205,47 @@ mod tests {
     fn lines_are_reordered_independently() {
         let shown = visual("أ ب\nج د");
         assert_eq!(shown, "ب أ\nد ج");
+    }
+
+    const LONG: &str = "مادي بعملة ساتوشي لا حاجة إلى بريد إلكتروني أو كلمة مرور لإنشاء حسابك الجديد";
+
+    #[test]
+    fn wrapped_rows_keep_logical_order_per_line() {
+        let words: Vec<&str> = LONG.split(' ').collect();
+        let rows: Vec<String> = words.chunks(4).map(|c| c.join(" ")).collect();
+        let shown = visual_rows(&rows);
+        let lines: Vec<&str> = shown.split('\n').collect();
+        assert_eq!(lines.len(), rows.len());
+        let restored: Vec<String> = lines.iter().map(|l| visual(l).into_owned()).collect();
+        assert_eq!(restored.join(" "), LONG);
+        assert_eq!(lines[0], visual(&rows[0]));
+    }
+
+    #[test]
+    fn punctuation_stays_with_its_own_wrapped_line() {
+        let rows = vec!["مرحبا بك في التطبيق،".to_string(), "استمتع بالبث.".to_string()];
+        let shown = visual_rows(&rows);
+        let lines: Vec<&str> = shown.split('\n').collect();
+        assert!(lines[0].ends_with("مرحبا") && lines[0].contains('،'));
+        assert!(lines[1].ends_with("استمتع") && lines[1].contains('.'));
+    }
+
+    #[test]
+    fn narrow_width_wraps_into_rows_that_restore_to_the_original() {
+        let mut measure = |s: &str| s.chars().count() as f32 * 8.0;
+        let rows = wrap_logical(LONG, 120.0, &mut measure);
+        assert!(rows.len() > 2);
+        assert!(rows.iter().all(|r| r.chars().count() as f32 * 8.0 <= 120.0 || !r.contains(' ')));
+        assert_eq!(rows.join(" "), LONG);
+        let shown = visual_rows(&rows);
+        let restored: Vec<String> = shown.split('\n').map(|l| visual(l).into_owned()).collect();
+        assert_eq!(restored.join(" "), LONG);
+    }
+
+    #[test]
+    fn explicit_newlines_start_new_rows() {
+        let mut measure = |s: &str| s.chars().count() as f32;
+        assert_eq!(wrap_logical("أ ب\nج", 100.0, &mut measure), ["أ ب", "ج"]);
     }
 
     #[test]

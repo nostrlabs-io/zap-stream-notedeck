@@ -162,7 +162,7 @@ impl LoginPage {
             .inner_margin(Margin::symmetric(16, 12))
             .show(ui, |ui| {
                 ui.set_width(ui.available_width());
-                ui.vertical(|ui| {
+                crate::bidi::vertical(ui, |ui| {
                     ui.spacing_mut().item_spacing.y = 2.0;
                     ui.label(theme::semibold(title, 16.0).color(theme::TEXT));
                     ui.label(theme::medium(subtitle, 14.0).color(theme::MUTED));
@@ -181,10 +181,7 @@ impl LoginPage {
     }
 
     fn body(ui: &mut Ui, text: &str) {
-        ui.add(
-            egui::Label::new(RichText::new(text).size(15.0).color(theme::TEXT_SOFT))
-                .wrap_mode(egui::TextWrapMode::Wrap),
-        );
+        crate::bidi::wrapped_label(ui, text, egui::FontId::proportional(15.0), theme::TEXT_SOFT);
     }
 
     fn field(ui: &mut Ui, value: &mut String, hint: &str, mono: bool) {
@@ -271,7 +268,7 @@ impl LoginPage {
             Self::title(ui, crate::i18n::t("login.welcome"));
             Self::body(
                 ui,
-                crate::i18n::t("login.welcome_body"),
+                crate::i18n::tl("login.welcome_body"),
             );
         });
         ui.add_space(6.0);
@@ -309,7 +306,7 @@ impl LoginPage {
 
     fn step_paste(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
         Self::title(ui, crate::i18n::t("login.with_key"));
-        Self::body(ui, crate::i18n::t("login.with_key_body"));
+        Self::body(ui, crate::i18n::tl("login.with_key_body"));
         Self::label(ui, crate::i18n::t("login.key_label"));
         Self::field(ui, &mut self.key, "nsec1... / npub1... / bunker://...", true);
         let go = Self::primary(ui, crate::i18n::t("button.login"), !self.key.trim().is_empty() && self.bunker.is_none());
@@ -328,7 +325,7 @@ impl LoginPage {
         Self::title(ui, crate::i18n::t("login.profile_title"));
         Self::body(
             ui,
-            crate::i18n::t("login.profile_body"),
+            crate::i18n::tl("login.profile_body"),
         );
         ui.add_space(4.0);
         Self::label(ui, crate::i18n::t("profile.display_name"));
@@ -347,11 +344,11 @@ impl LoginPage {
         Self::title(ui, crate::i18n::t("login.address_title"));
         Self::body(
             ui,
-            crate::i18n::t("login.address_body"),
+            crate::i18n::tl("login.address_body"),
         );
         Self::label(ui, crate::i18n::t("profile.lightning_address"));
         Self::field(ui, &mut self.address, "you@wallet.com", true);
-        Self::body(ui, crate::i18n::t("login.address_later"));
+        Self::body(ui, crate::i18n::tl("login.address_later"));
         if Self::primary(ui, crate::i18n::t("button.continue"), true) {
             self.step = Step::SaveKey;
         }
@@ -361,7 +358,7 @@ impl LoginPage {
         Self::title(ui, crate::i18n::t("login.save_title"));
         Self::body(
             ui,
-            crate::i18n::t("login.save_body"),
+            crate::i18n::tl("login.save_body"),
         );
         let nsec = self.shown_key();
         let shown = Self::masked(&nsec);

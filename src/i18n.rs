@@ -116,6 +116,10 @@ pub fn t(key: &'static str) -> &'static str {
         .or_insert_with(|| Box::leak(crate::bidi::visual(logical).into_owned().into_boxed_str()))
 }
 
+pub fn tl(key: &'static str) -> &'static str {
+    lookup(CURRENT.load(Ordering::Relaxed), key)
+}
+
 pub fn tf(key: &'static str, args: &[(&str, &str)]) -> String {
     let mut out = lookup(CURRENT.load(Ordering::Relaxed), key).to_string();
     for (name, value) in args {

@@ -34,7 +34,7 @@ impl ProfilePage {
     }
 
     fn stat(ui: &mut Ui, value: usize, label: &str) {
-        ui.vertical(|ui| {
+        crate::bidi::vertical(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 2.0;
             ui.label(theme::display(value.to_string(), 30.0).color(PRIMARY));
             ui.label(theme::medium(label, 14.0).color(MUTED));
@@ -68,7 +68,7 @@ impl NostrWidget for ProfilePage {
                                 .size(132.0)
                                 .ring(PRIMARY)
                                 .render(ui, services.ctx);
-                            ui.vertical(|ui| {
+                            crate::bidi::vertical(ui, |ui| {
                                 ui.spacing_mut().item_spacing.y = 8.0;
                                 let name = profile
                                     .and_then(|p| p.display_name().or(p.name()))
@@ -104,9 +104,11 @@ impl NostrWidget for ProfilePage {
 
                         if let Some(about) = profile.and_then(|p| p.about()) {
                             if !about.is_empty() {
-                                ui.add(
-                                    Label::new(RichText::new(about).size(16.0).color(TEXT_SOFT))
-                                        .wrap_mode(TextWrapMode::Wrap),
+                                crate::bidi::wrapped_label(
+                                    ui,
+                                    about,
+                                    egui::FontId::proportional(16.0),
+                                    TEXT_SOFT,
                                 );
                             }
                         }

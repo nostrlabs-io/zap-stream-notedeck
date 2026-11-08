@@ -9,6 +9,32 @@ use log::info;
 use nostr::nips::nip19::ToBech32;
 use std::collections::HashMap;
 
+pub fn outgoing_text(buffer: &str) -> String {
+    buffer.trim().to_string()
+}
+
+#[cfg(test)]
+mod outgoing_tests {
+    use super::*;
+
+    #[test]
+    fn typed_arabic_and_latin_is_sent_in_logical_order() {
+        let mut buffer = String::new();
+        for c in "مرحبا abc".chars() {
+            buffer.push(c);
+        }
+        buffer.push('\n');
+        assert_eq!(outgoing_text(&buffer), "مرحبا abc");
+    }
+
+    #[test]
+    fn editable_buffer_is_never_visually_reordered() {
+        let sent = outgoing_text("مرحبا abc");
+        assert_eq!(sent.chars().next(), Some('م'));
+        assert!(sent.ends_with("abc"));
+    }
+}
+
 pub struct WriteChat {
     link: NostrLink,
     msg: String,
@@ -104,7 +130,7 @@ impl WriteChat {
                         .clicked()
                         || self.msg.ends_with('\n')
                     {
-                        let text = self.msg.trim().to_string();
+                        let text = outgoing_text(&self.msg);
                         let tags = message_tags(&text, &self.picked, &self.mentions);
                         if services.write_live_chat_msg(&self.link, &text, tags) {
                             info!("Sending: {}", text);

@@ -226,7 +226,7 @@ impl StreamPage {
 
     fn chat_panel(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) {
         let chat_h = 64.0;
-        ui.vertical(|ui| {
+        crate::bidi::vertical(ui, |ui| {
             ui.spacing_mut().item_spacing = vec2(0., 0.);
             Frame::new()
                 .inner_margin(egui::Margin {

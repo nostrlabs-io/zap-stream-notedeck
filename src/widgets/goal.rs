@@ -99,7 +99,7 @@ pub fn paint_goal(ui: &mut Ui, title: &str, total: u64, target: u64) {
         let fraction = progress(total, target);
         let remaining_sats = target.saturating_sub(total) / 1000;
 
-        ui.vertical(|ui| {
+        crate::bidi::vertical(ui, |ui| {
             ui.spacing_mut().item_spacing.y = 4.0;
             ui.horizontal(|ui| {
                 let to_go = (remaining_sats > 0).then(|| {

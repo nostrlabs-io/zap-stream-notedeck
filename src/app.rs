@@ -441,7 +441,7 @@ impl notedeck::App for ZapStreamApp {
                             error!("{}", e);
                         }
                     }
-                    ui.with_layout(crate::bidi::start_layout(egui::Align::Min), |ui| {
+                    ui.horizontal_top(|ui| {
                         if wide {
                             ui.allocate_ui_with_layout(
                                 egui::vec2(crate::theme::SIDEBAR_WIDTH, ui.available_height()),
