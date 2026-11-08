@@ -16,6 +16,8 @@ pub struct WriteChat {
     mentions: HashMap<String, [u8; 32]>,
     token: Option<Token>,
     popup_hovered: bool,
+    focus_pending: bool,
+    debug_write: bool,
     input_id: Option<egui::Id>,
     picker_open: bool,
 }
@@ -24,7 +26,13 @@ impl WriteChat {
     pub fn new(link: NostrLink) -> Self {
         Self {
             link,
-            msg: String::new(),
+            msg: if cfg!(debug_assertions) {
+                std::env::var("ZAP_STREAM_DEBUG_WRITE").unwrap_or_default()
+            } else {
+                String::new()
+            },
+            focus_pending: cfg!(debug_assertions) && std::env::var_os("ZAP_STREAM_DEBUG_WRITE").is_some(),
+            debug_write: cfg!(debug_assertions) && std::env::var_os("ZAP_STREAM_DEBUG_WRITE").is_some(),
             picked: HashMap::new(),
             mentions: HashMap::new(),
             token: None,
@@ -41,6 +49,13 @@ impl WriteChat {
         custom_emoji: &[(String, String)],
         disabled_until: Option<Option<u64>>,
     ) -> Response {
+        let debug_emoji = [("fire".to_string(), String::new()), ("goat".to_string(), String::new())];
+        let custom_emoji: &[(String, String)] =
+            if cfg!(debug_assertions) && custom_emoji.is_empty() && self.debug_write {
+                &debug_emoji
+            } else {
+                custom_emoji
+            };
         if !services.can_sign() {
             let resp = Frame::new()
                 .inner_margin(egui::Margin::symmetric(12, 12))
@@ -105,8 +120,19 @@ impl WriteChat {
                     }
                     let input = ui.add(NativeTextInput::new(&mut self.msg).with_hint_text(crate::i18n::t("chat.message_hint")));
                     self.input_id = Some(input.id);
-                    if input.has_focus() || self.popup_hovered {
-                        if input.has_focus() {
+                    if self.focus_pending {
+                        self.focus_pending = false;
+                        input.request_focus();
+                        let end = egui::text::CCursor::new(self.msg.chars().count());
+                        if let Some(mut state) = egui::TextEdit::load_state(ui.ctx(), input.id) {
+                            state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
+                            egui::TextEdit::store_state(ui.ctx(), input.id, state);
+                        }
+                        ui.ctx().request_repaint();
+                    }
+                    let tracking = input.has_focus() || self.debug_write;
+                    if tracking || self.popup_hovered {
+                        if tracking {
                             let cursor = egui::TextEdit::load_state(ui.ctx(), input.id)
                                 .and_then(|s| s.cursor.char_range())
                                 .map(|r| r.primary.index.0)
