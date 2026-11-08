@@ -186,6 +186,7 @@ impl ZapStreamApp {
                     link: crate::link::NostrLink::profile(&pk),
                 };
             }
+            Some(crate::deep_link::DeepLink::WalletReturn) => crate::nwa::signal_return(),
             None => {}
         }
     }

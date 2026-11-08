@@ -71,4 +71,5 @@ codegen-units = 1
 panic = "abort"
 
 [dev-dependencies]
+tokio = { version = "1.40.0", features = ["test-util"] }
 tempfile = "3"

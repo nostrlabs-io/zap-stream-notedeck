@@ -4,9 +4,11 @@ use nwc::prelude::{
 use std::time::Duration;
 
 pub const NWC_RELAYS: [&str; 1] = ["wss://relay.getalby.com/v1"];
+pub const RETURN_SCHEME: &str = "zswc";
 pub const RETURN_URL: &str = "zswc://handler";
 pub const WALLET_INFO_KIND: u16 = 13194;
-pub const WAIT: Duration = Duration::from_secs(15);
+pub const POLL: Duration = Duration::from_secs(15);
+pub const FETCH_TIMEOUT: Duration = Duration::from_secs(10);
 pub const TOTAL_WAIT: Duration = Duration::from_secs(120);
 
 pub fn walletauth_url(client: &PublicKey, relays: &[&str]) -> String {
@@ -62,6 +64,66 @@ pub fn nwc_url(info: &Event, secret_hex: &str, relays: &[&str]) -> String {
     url
 }
 
+static RETURNED: tokio::sync::Notify = tokio::sync::Notify::const_new();
+
+pub fn signal_return() {
+    RETURNED.notify_one();
+}
+
+pub trait WalletInfoSource {
+    async fn fetch(&self) -> Result<Vec<Event>, String>;
+}
+
+pub async fn wait_for_wallet(
+    source: &impl WalletInfoSource,
+    returned: &tokio::sync::Notify,
+    secret_hex: &str,
+    poll: Duration,
+    total: Duration,
+) -> Result<String, String> {
+    let started = tokio::time::Instant::now();
+    let mut last_err = None;
+    loop {
+        match source.fetch().await {
+            Ok(events) => {
+                if let Some(info) = latest_wallet_info(events) {
+                    return Ok(nwc_url(&info, secret_hex, &NWC_RELAYS));
+                }
+                last_err = None;
+            }
+            Err(e) => last_err = Some(e),
+        }
+        if started.elapsed() + poll > total {
+            return Err(last_err
+                .unwrap_or_else(|| crate::i18n::t("settings.wallet_1tap_timeout").to_string()));
+        }
+        tokio::select! {
+            _ = tokio::time::sleep(poll) => {}
+            _ = returned.notified() => {}
+        }
+    }
+}
+
+struct RelaySource {
+    pool: RelayPool,
+    filter: Filter,
+}
+
+impl WalletInfoSource for RelaySource {
+    async fn fetch(&self) -> Result<Vec<Event>, String> {
+        self.pool
+            .fetch_events_from(
+                NWC_RELAYS,
+                self.filter.clone(),
+                FETCH_TIMEOUT,
+                ReqExitPolicy::ExitOnEOSE,
+            )
+            .await
+            .map(|events| events.to_vec())
+            .map_err(|e| e.to_string())
+    }
+}
+
 pub struct Pending {
     pub keys: Keys,
 }
@@ -86,26 +148,10 @@ impl Pending {
             .pubkey(self.keys.public_key())
             .since(Timestamp::now() - Duration::from_secs(600))
             .limit(5);
-        let started = std::time::Instant::now();
-        let mut last_err = None;
-        let result = loop {
-            match pool
-                .fetch_events_from(NWC_RELAYS, filter.clone(), WAIT, ReqExitPolicy::WaitDurationAfterEOSE(WAIT))
-                .await
-            {
-                Ok(events) => {
-                    if let Some(info) = latest_wallet_info(events) {
-                        break Ok(nwc_url(&info, &self.keys.secret_key().to_secret_hex(), &NWC_RELAYS));
-                    }
-                }
-                Err(e) => last_err = Some(e.to_string()),
-            }
-            if started.elapsed() >= TOTAL_WAIT {
-                break Err(last_err.unwrap_or_else(|| crate::i18n::t("settings.wallet_1tap_timeout").to_string()));
-            }
-            tokio::time::sleep(Duration::from_secs(2)).await;
-        };
-        pool.shutdown().await;
+        let source = RelaySource { pool, filter };
+        let secret = self.keys.secret_key().to_secret_hex();
+        let result = wait_for_wallet(&source, &RETURNED, &secret, POLL, TOTAL_WAIT).await;
+        source.pool.shutdown().await;
         result
     }
 }
@@ -151,6 +197,72 @@ mod tests {
         let events = vec![info_event(&old, &client, 10), info_event(&new, &client, 20)];
         let picked = latest_wallet_info(events).unwrap();
         assert_eq!(picked.pubkey, new.public_key());
+    }
+
+    struct Fake {
+        calls: std::sync::Mutex<usize>,
+        script: Vec<Result<Vec<Event>, String>>,
+    }
+
+    impl WalletInfoSource for Fake {
+        async fn fetch(&self) -> Result<Vec<Event>, String> {
+            let mut n = self.calls.lock().unwrap();
+            let i = (*n).min(self.script.len() - 1);
+            *n += 1;
+            self.script[i].clone()
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn event_on_third_poll_builds_url() {
+        let wallet = Keys::generate();
+        let client = Keys::generate();
+        let ev = info_event(&wallet, &client.public_key(), 5);
+        let secret = client.secret_key().to_secret_hex();
+        let fake = Fake {
+            calls: Default::default(),
+            script: vec![Ok(vec![]), Ok(vec![]), Ok(vec![ev.clone()])],
+        };
+        let start = tokio::time::Instant::now();
+        let url = wait_for_wallet(&fake, &Default::default(), &secret, POLL, TOTAL_WAIT).await.unwrap();
+        assert_eq!(url, nwc_url(&ev, &secret, &NWC_RELAYS));
+        assert_eq!(*fake.calls.lock().unwrap(), 3);
+        assert_eq!(start.elapsed(), POLL * 2);
+        assert!(nwc::prelude::NostrWalletConnectURI::parse(&url).is_ok());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn nothing_before_deadline_gives_timeout_text() {
+        let fake = Fake { calls: Default::default(), script: vec![Ok(vec![])] };
+        let start = tokio::time::Instant::now();
+        let err = wait_for_wallet(&fake, &Default::default(), "00", POLL, TOTAL_WAIT).await.unwrap_err();
+        assert_eq!(err, crate::i18n::t("settings.wallet_1tap_timeout"));
+        assert!(start.elapsed() <= TOTAL_WAIT);
+        assert!(start.elapsed() >= TOTAL_WAIT - POLL);
+        assert_eq!(*fake.calls.lock().unwrap(), 9);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn relay_error_is_returned_at_deadline() {
+        let fake = Fake { calls: Default::default(), script: vec![Err("relay down".into())] };
+        let err = wait_for_wallet(&fake, &Default::default(), "00", POLL, TOTAL_WAIT).await.unwrap_err();
+        assert_eq!(err, "relay down");
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn return_signal_fetches_without_waiting_the_poll() {
+        let wallet = Keys::generate();
+        let client = Keys::generate();
+        let ev = info_event(&wallet, &client.public_key(), 5);
+        let fake = Fake {
+            calls: Default::default(),
+            script: vec![Ok(vec![]), Ok(vec![ev])],
+        };
+        let returned = tokio::sync::Notify::new();
+        returned.notify_one();
+        let start = tokio::time::Instant::now();
+        wait_for_wallet(&fake, &returned, "00", POLL, TOTAL_WAIT).await.unwrap();
+        assert_eq!(start.elapsed(), Duration::ZERO);
     }
 
     #[test]

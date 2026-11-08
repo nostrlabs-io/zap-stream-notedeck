@@ -210,8 +210,33 @@ pub fn open_url(ctx: &egui::Context, url: &str) {
         let _ = ctx;
         call_activity_str("openUrl", url);
     }
-    #[cfg(not(target_os = "android"))]
+    #[cfg(target_os = "ios")]
+    {
+        let _ = ctx;
+        open_url_ios(url);
+    }
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     ctx.open_url(egui::OpenUrl::same_tab(url));
+}
+
+#[cfg(target_os = "ios")]
+fn open_url_ios(url: &str) {
+    use objc2::runtime::AnyObject;
+    use objc2::{class, msg_send};
+    let Ok(c) = std::ffi::CString::new(url) else {
+        return;
+    };
+    unsafe {
+        let ns: *mut AnyObject = msg_send![class!(NSString), stringWithUTF8String: c.as_ptr()];
+        let nsurl: *mut AnyObject = msg_send![class!(NSURL), URLWithString: ns];
+        let app: *mut AnyObject = msg_send![class!(UIApplication), sharedApplication];
+        if nsurl.is_null() || app.is_null() {
+            return;
+        }
+        let options: *mut AnyObject = msg_send![class!(NSDictionary), dictionary];
+        let none: *mut AnyObject = std::ptr::null_mut();
+        let _: () = msg_send![app, openURL: nsurl, options: options, completionHandler: none];
+    }
 }
 
 pub fn set_landscape_fullscreen(enabled: bool) {

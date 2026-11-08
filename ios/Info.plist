@@ -28,6 +28,21 @@
 	<array>
 		<string>iPhoneOS</string>
 	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>nostr+walletauth</string>
+	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>__BUNDLE_ID__.walletreturn</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>zswc</string>
+			</array>
+		</dict>
+	</array>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>MinimumOSVersion</key>

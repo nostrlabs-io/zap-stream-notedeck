@@ -6,6 +6,7 @@ use nostr::FromBech32;
 pub enum DeepLink {
     Stream(NostrLink),
     Profile([u8; 32]),
+    WalletReturn,
 }
 
 const STREAM_KIND: u32 = 30_311;
@@ -27,7 +28,15 @@ fn identifier(input: &str) -> &str {
     &without_web[..end]
 }
 
+fn is_wallet_return(input: &str) -> bool {
+    let rest = input.trim().strip_prefix(crate::nwa::RETURN_SCHEME).unwrap_or("");
+    rest.strip_prefix("://handler").is_some_and(|r| r.is_empty() || r.starts_with(['/', '?', '#']))
+}
+
 pub fn parse(input: &str) -> Option<DeepLink> {
+    if is_wallet_return(input) {
+        return Some(DeepLink::WalletReturn);
+    }
     match Nip19::from_bech32(identifier(input)).ok()? {
         Nip19::Coordinate(c) if c.kind.as_u16() as u32 == STREAM_KIND => {
             Some(DeepLink::Stream(NostrLink::new(
@@ -67,6 +76,14 @@ mod tests {
         let pk = keys.public_key().to_bytes();
         let coord = Coordinate::new(Kind::from_u16(kind), keys.public_key()).identifier("abc-123");
         (coord.to_bech32().unwrap(), pk)
+    }
+
+    #[test]
+    fn parses_wallet_return_link() {
+        assert_eq!(parse("zswc://handler"), Some(DeepLink::WalletReturn));
+        assert_eq!(parse(" zswc://handler/?x=1"), Some(DeepLink::WalletReturn));
+        assert_eq!(parse("zswc://other"), None);
+        assert_eq!(parse("zswc://handlerx"), None);
     }
 
     #[test]
