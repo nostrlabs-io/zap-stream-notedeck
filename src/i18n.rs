@@ -20,7 +20,6 @@ pub const LOCALES: &[(&str, &str)] = &[
     ("ro", "Română"),
     ("sv", "Svenska"),
     ("tr", "Türkçe"),
-    ("ar", "العربية"),
     ("el", "Ελληνικά"),
     ("ja", "日本語"),
     ("ko", "한국어"),
@@ -28,6 +27,8 @@ pub const LOCALES: &[(&str, &str)] = &[
     ("uk", "Українська"),
     ("zh", "中文"),
 ];
+
+pub const RTL_PENDING: &[&str] = &["ar"];
 
 static CURRENT: AtomicUsize = AtomicUsize::new(0);
 
@@ -48,7 +49,6 @@ fn source(code: &str) -> &'static str {
         "ro" => include_str!("../assets/i18n/ro.tsv"),
         "sv" => include_str!("../assets/i18n/sv.tsv"),
         "tr" => include_str!("../assets/i18n/tr.tsv"),
-        "ar" => include_str!("../assets/i18n/ar.tsv"),
         "el" => include_str!("../assets/i18n/el.tsv"),
         "ja" => include_str!("../assets/i18n/ja.tsv"),
         "ko" => include_str!("../assets/i18n/ko.tsv"),
@@ -137,35 +137,66 @@ mod tests {
         }
     }
 
+    fn locale_files() -> Vec<(String, HashMap<String, String>)> {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/i18n");
+        let mut out = Vec::new();
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_some_and(|e| e == "tsv") {
+                let code = path.file_stem().unwrap().to_string_lossy().to_string();
+                let map = std::fs::read_to_string(&path)
+                    .unwrap()
+                    .lines()
+                    .filter_map(|l| l.split_once('='))
+                    .map(|(k, v)| (k.to_string(), v.to_string()))
+                    .collect();
+                out.push((code, map));
+            }
+        }
+        out
+    }
+
     #[test]
-    fn every_locale_has_every_english_key() {
-        let tables = tables();
-        for (i, (code, _)) in LOCALES.iter().enumerate().skip(1) {
-            if matches!(*code, "ar" | "el" | "ja" | "ko" | "ru" | "uk" | "zh") {
-                for key in tables[0].keys() {
-                    assert!(tables[i].contains_key(key), "{code} is missing key {key}");
+    fn every_locale_file_has_every_english_key_except_the_short_legacy_ones() {
+        let files = locale_files();
+        let en = &files.iter().find(|(c, _)| c == "en").unwrap().1;
+        for (code, map) in &files {
+            if ["ar", "el", "ja", "ko", "ru", "uk", "zh"].contains(&code.as_str()) {
+                for key in en.keys() {
+                    assert!(map.contains_key(key), "{code} is missing key {key}");
                 }
             }
         }
     }
 
     #[test]
-    fn every_locale_keeps_english_placeholders() {
-        let tables = tables();
-        for (i, (code, _)) in LOCALES.iter().enumerate().skip(1) {
-            for (key, value) in &tables[i] {
-                let en = tables[0][key];
+    fn every_locale_file_keeps_english_placeholders() {
+        let files = locale_files();
+        let en = &files.iter().find(|(c, _)| c == "en").unwrap().1;
+        for (code, map) in &files {
+            for (key, value) in map {
+                let en_value = &en[key];
                 for name in ["{n}", "{name}", "{host}", "{left}", "{time}", "{when}", "{names}", "{users}", "{moderator}", "{duration}", "{error}", "{code}", "{rate}", "{unit}"] {
-                    assert_eq!(en.contains(name), value.contains(name), "{code} {key} placeholder {name}");
+                    assert_eq!(en_value.contains(name), value.contains(name), "{code} {key} placeholder {name}");
                 }
             }
         }
     }
 
     #[test]
-    fn every_locale_has_a_source_file() {
+    fn every_offered_locale_has_a_source_file() {
         for (code, _) in LOCALES {
             assert!(!source(code).is_empty(), "{code} has no source");
+        }
+    }
+
+    #[test]
+    fn rtl_pending_locales_are_not_offered_or_detected() {
+        for code in RTL_PENDING {
+            assert!(LOCALES.iter().all(|(c, _)| c != code), "{code} is offered");
+            assert_eq!(locale_index(code), None);
+            assert_eq!(locale_index("ar_SA.UTF-8"), None);
+            assert!(locale_files().iter().any(|(c, _)| c == code));
         }
     }
 
