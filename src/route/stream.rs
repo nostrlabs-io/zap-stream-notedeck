@@ -2,7 +2,7 @@ use crate::link::NostrLink;
 use crate::route::RouteServices;
 use crate::theme::{MARGIN_DEFAULT, NEUTRAL_800, ROUNDING_DEFAULT};
 use crate::widgets::{
-    sub_or_poll, Chat, Goal, NostrWidget, PlaceholderRect, StreamPlayer, StreamTitle, WriteChat,
+    sub_or_poll, Chat, Goal, NostrWidget, PlaceholderRect, StreamCards, StreamPlayer, StreamTitle, WriteChat,
 };
 use egui::{vec2, Align, Frame, Layout, Response, ScrollArea, Stroke, Ui, Vec2, Widget};
 use nostrdb::{Filter, Note};
@@ -21,6 +21,7 @@ pub struct StreamPage {
     player: Option<StreamPlayer>,
     chat: Option<Chat>,
     goal: Option<Goal>,
+    cards: Option<StreamCards>,
     new_msg: WriteChat,
 
     events: HashSet<NoteRef>,
@@ -35,6 +36,7 @@ impl StreamPage {
             link,
             chat: None,
             goal: None,
+            cards: None,
             player: None,
             events: HashSet::new(),
             sub: None,
@@ -159,6 +161,9 @@ impl StreamPage {
                             .show(ui, |ui| {
                                 ui.set_width(w - margin * 2.0);
                                 StreamTitle::new(event).render_compact(ui, services);
+                                if let Some(c) = &self.cards {
+                                    c.render(ui, services);
+                                }
                             });
                     });
 
@@ -281,6 +286,9 @@ impl StreamPage {
                         self.video(ui, services, rect, event);
                         ui.add_space(14.);
                         StreamTitle::new(event).render(ui, services);
+                        if let Some(c) = &self.cards {
+                            c.render(ui, services);
+                        }
                     });
                 },
             );
@@ -321,6 +329,11 @@ impl NostrWidget for StreamPage {
                 self.goal = goal_id.map(Goal::new);
             }
 
+            let host = *event.host();
+            if self.cards.as_ref().map(|c| *c.host()) != Some(host) {
+                self.cards = Some(StreamCards::new(host));
+            }
+
             if let (Some(c), Some(k)) = (self.chat.as_mut(), event.key()) {
                 c.set_stream(k);
             }
@@ -352,6 +365,9 @@ impl NostrWidget for StreamPage {
         }
         if let Some(g) = self.goal.as_mut() {
             g.update(services)?;
+        }
+        if let Some(c) = self.cards.as_mut() {
+            c.update(services)?;
         }
         Ok(())
     }
