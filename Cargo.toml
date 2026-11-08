@@ -23,7 +23,7 @@ serde = { version = "1.0.214", features = ["derive"] }
 directories = "6.0.0"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp", "gif"] }
 qrcode = { version = "0.14", default-features = false }
-lumina-video = { git = "https://github.com/v0l/lumina-video", branch = "egui-0.36" }
+lumina-video = { git = "https://github.com/lumina-video/lumina-video", rev = "ddd8278419ad38f4f0456ee89b534cd46f3c6584" }
 
 nostr = { version = "0.37.0", default-features = false, features = ["std", "nip49", "nip57"] }
 nostrdb = { git = "https://github.com/damus-io/nostrdb-rs", rev = "e22e5632a75e" }
