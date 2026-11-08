@@ -10,7 +10,10 @@ cargo build --profile "$PROFILE" --bin zap_stream_app --target "$TARGET"
 rm -rf "$APP"
 mkdir -p "$APP"
 cp "target/$TARGET/$PROFILE/zap_stream_app" "$APP/ZapStream"
-sed "s/__BUNDLE_ID__/$BUNDLE_ID/" ios/Info.plist > "$APP/Info.plist"
+VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+IFS=. read -r v_major v_minor v_patch <<<"${VERSION%%-*}"
+BUILD=${BUILD_NUMBER:-$((v_major * 1000000 + v_minor * 10000 + v_patch * 100))}
+sed -e "s/__BUNDLE_ID__/$BUNDLE_ID/" -e "s/__VERSION__/${VERSION%%-*}/" -e "s/__BUILD__/$BUILD/" ios/Info.plist > "$APP/Info.plist"
 mkdir -p target/ios
 sips -z 1024 1024 -s format jpeg assets/logo.png --out target/ios/icon.jpg >/dev/null
 sips -s format png target/ios/icon.jpg --out target/ios/icon-1024.png >/dev/null

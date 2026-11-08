@@ -1,0 +1,229 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version to build, like v1.3.0. Builds only: nothing is published unless a tag was pushed."
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  TAG: ${{ github.event.inputs.tag || github.ref_name }}
+
+jobs:
+  check:
+    name: check the tag
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tag, Cargo version and changelog
+        run: |
+          if ! printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+'; then
+            echo "::error::'$TAG' is not a version tag like v1.3.0."
+            exit 1
+          fi
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          if [ "$TAG" != "v$version" ]; then
+            echo "::error::tag $TAG does not match the version $version in Cargo.toml."
+            exit 1
+          fi
+          awk -v v="$version" '/^## \[/{p=index($0,"[" v "]")>0;next} /^\[[^]]*\]: /{p=0} p' CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error::CHANGELOG.md has no entry for $version."
+            exit 1
+          fi
+
+  test:
+    needs: check
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config libclang-dev libasound2-dev libwayland-dev libxkbcommon-dev \
+            libx11-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: test
+      - run: cargo test --release --locked --lib
+
+  linux:
+    needs: check
+    name: x86_64-unknown-linux-gnu
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake pkg-config libclang-dev libasound2-dev libwayland-dev libxkbcommon-dev \
+            libx11-dev libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: linux
+      - name: Build
+        run: cargo build --release --locked --bin zap_stream_app
+      - name: Package
+        run: |
+          name="zap_stream-${TAG}-x86_64-unknown-linux-gnu"
+          mkdir -p "dist/${name}"
+          cp target/release/zap_stream_app "dist/${name}/"
+          cp README.md CHANGELOG.md "dist/${name}/"
+          tar -C dist -czf "dist/${name}.tar.gz" "${name}"
+          rm -rf "dist/${name}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+          if-no-files-found: error
+
+  macos:
+    needs: check
+    name: aarch64-apple-darwin
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: FFmpeg
+        run: |
+          brew install ffmpeg pkg-config
+          echo "PKG_CONFIG_PATH=$(brew --prefix ffmpeg)/lib/pkgconfig" >> "$GITHUB_ENV"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: macos
+      - name: Build
+        run: cargo build --release --locked --bin zap_stream_app
+      - name: Package
+        run: |
+          name="zap_stream-${TAG}-aarch64-apple-darwin"
+          mkdir -p "dist/${name}"
+          cp target/release/zap_stream_app "dist/${name}/"
+          cp README.md CHANGELOG.md "dist/${name}/"
+          tar -C dist -czf "dist/${name}.tar.gz" "${name}"
+          rm -rf "dist/${name}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/*
+          if-no-files-found: error
+
+  windows:
+    needs: check
+    name: x86_64-pc-windows-msvc
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: windows
+      - name: Build
+        run: cargo build --release --locked --bin zap_stream_app
+      - name: Package
+        shell: bash
+        run: |
+          name="zap_stream-${TAG}-x86_64-pc-windows-msvc"
+          mkdir -p "dist/${name}"
+          cp target/release/zap_stream_app.exe "dist/${name}/"
+          cp README.md CHANGELOG.md "dist/${name}/"
+          cd dist && 7z a "${name}.zip" "${name}" && rm -rf "${name}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+          if-no-files-found: error
+
+  android:
+    needs: check
+    name: android
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: android
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ hashFiles('android/**/*.gradle.kts', 'android/gradle/**') }}
+      - name: SDK, build tools and NDK
+        run: |
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses >/dev/null || true
+          "$sdkmanager" "platforms;android-35" "build-tools;35.0.0" "ndk;28.2.13676358"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/28.2.13676358" >> "$GITHUB_ENV"
+      - name: Install cargo-ndk
+        run: cargo install cargo-ndk --locked
+      - name: Decode the upload keystore
+        env:
+          KEYSTORE: ${{ secrets.KEYSTORE }}
+          KEYSTORE_SHA256: ${{ secrets.KEYSTORE_SHA256 }}
+        run: |
+          printf '%s' "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/upload.p12"
+          echo "$KEYSTORE_SHA256  $RUNNER_TEMP/upload.p12" | sha256sum -c --quiet
+      - name: Build and sign the APK and AAB
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/upload.p12
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: scripts/release.sh
+      - name: Check the signatures
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs dist/*.apk | grep -E 'Signer #1 certificate SHA-256'
+          jarsigner -verify dist/*.aab | tail -1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: |
+            dist/*.apk
+            dist/*.aab
+          if-no-files-found: error
+
+  release:
+    needs: [test, linux, macos, windows, android]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Release notes and checksums
+        run: |
+          awk -v v="${TAG#v}" '/^## \[/{p=index($0,"[" v "]")>0;next} /^\[[^]]*\]: /{p=0} p' CHANGELOG.md > notes.md
+          {
+            echo
+            echo "The iOS build is made on a Mac with scripts/release-apple.sh and attached separately."
+          } >> notes.md
+          cd dist
+          sha256sum * > SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.TAG }}
+          name: ${{ env.TAG }}
+          body_path: notes.md
+          prerelease: ${{ contains(env.TAG, '-') }}
+          files: dist/*

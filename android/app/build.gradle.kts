@@ -10,6 +10,15 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+val cargoVersion: String = rootProject.file("../Cargo.toml").readLines()
+    .first { it.startsWith("version = ") }
+    .substringAfter('"').substringBefore('"')
+
+fun versionCodeOf(version: String): Int {
+    val (major, minor, patch) = version.substringBefore('-').split('.').map { it.toInt() }
+    return major * 1_000_000 + minor * 10_000 + patch * 100
+}
+
 android {
     namespace = "stream.zap.app"
     compileSdk = 35
@@ -18,8 +27,8 @@ android {
         applicationId = "io.nostrlabs.zap_stream_flutter"
         minSdk = 26      // Required for HardwareBuffer API
         targetSdk = 35
-        versionCode = (System.getenv("VERSION_CODE") ?: "25").toInt()
-        versionName = "0.2.1"
+        versionCode = System.getenv("VERSION_CODE")?.toInt() ?: versionCodeOf(cargoVersion)
+        versionName = cargoVersion
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
