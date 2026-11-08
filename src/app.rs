@@ -245,6 +245,18 @@ impl notedeck::App for ZapStreamApp {
         if let Some(s) = self.frame_stats.as_mut() {
             s.tick();
         }
+        if let Some((step, at)) = crate::frame_stats::debug_scroll_step() {
+            ui.ctx().input_mut(|i| {
+                i.events.push(egui::Event::PointerMoved(egui::pos2(at[0], at[1])));
+                i.events.push(egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: egui::vec2(0.0, step),
+                    modifiers: egui::Modifiers::NONE,
+                    phase: egui::TouchPhase::Move,
+                })
+            });
+            ui.ctx().request_repaint();
+        }
 
         if let Ok(v) = std::env::var("ZAP_STREAM_PAGE") {
             if self.startup_page.is_none() {
@@ -482,6 +494,9 @@ impl notedeck::App for ZapStreamApp {
                 .set_sub(profiles_sub_identity(), config);
         }
 
+        if let Some(s) = self.frame_stats.as_mut() {
+            s.end();
+        }
         AppResponse::none()
     }
 }

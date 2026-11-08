@@ -15,3 +15,7 @@ profile.past_streams=Tidigare streamar
 button.open_wallet=Öppna i plånboken
 button.zap=Zap
 category.most_zapped=Most zapped streamers
+notify.went_live={name} sänder live!
+notify.on=Aviseringar på
+notify.off=Meddela mig
+notify.permission=Tillåt aviseringar för att få veta när någon sänder live.

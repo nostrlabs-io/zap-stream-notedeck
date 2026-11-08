@@ -9,6 +9,7 @@ pub(crate) mod chat_timeout;
 mod chat_zap;
 pub(crate) mod emoji_picker;
 pub(crate) mod mute_button;
+pub(crate) mod notify_button;
 pub(crate) mod note_embed;
 pub(crate) mod report;
 pub mod goal;

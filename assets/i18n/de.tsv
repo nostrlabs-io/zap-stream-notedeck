@@ -15,3 +15,7 @@ profile.past_streams=Vergangene Streams
 button.open_wallet=In Brieftasche öffnen
 button.zap=Zap
 category.most_zapped=Most zapped streamers
+notify.went_live={name} ist jetzt live!
+notify.on=Benachrichtigung an
+notify.off=Benachrichtigen
+notify.permission=Erlaube Benachrichtigungen, um zu erfahren, wann jemand live geht.

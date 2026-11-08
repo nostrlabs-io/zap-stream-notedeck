@@ -126,6 +126,7 @@ impl NostrWidget for ProfilePage {
                                 }
                             }
                             if !is_me && can_sign {
+                                crate::widgets::notify_button::show(ui, services, &self.pubkey);
                                 let muted = services.is_muted(&self.pubkey);
                                 let label = if muted { crate::i18n::t("button.unblock") } else { crate::i18n::t("button.block") };
                                 if Button::new().text(ui, label).clicked() {

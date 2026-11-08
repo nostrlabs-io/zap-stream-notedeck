@@ -15,3 +15,7 @@ profile.past_streams=Minulé proudy
 button.open_wallet=Otevřít v peněžence
 button.zap=Zap
 category.most_zapped=Most zapped streamers
+notify.went_live={name} právě vysílá!
+notify.on=Upozornění zapnuta
+notify.off=Upozornit mě
+notify.permission=Povolte oznámení, abyste dostávali upozornění na vysílání.

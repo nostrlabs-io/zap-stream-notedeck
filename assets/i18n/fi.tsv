@@ -15,3 +15,7 @@ profile.past_streams=Aikaisemmat lähetykset
 button.open_wallet=Avaa lompakossa
 button.zap=Zap
 category.most_zapped=Most zapped streamers
+notify.went_live={name} aloitti lähetyksen!
+notify.on=Ilmoitukset päällä
+notify.off=Ilmoita minulle
+notify.permission=Salli ilmoitukset saadaksesi tiedon lähetyksistä.

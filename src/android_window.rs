@@ -251,6 +251,49 @@ pub fn enter_pip() {
     call_activity("enterPip", "()V", &[]);
 }
 
+pub fn schedule_live_check(enabled: bool) {
+    #[cfg(target_os = "android")]
+    call_activity("scheduleLiveCheck", "(Z)V", &[enabled.into()]);
+    #[cfg(not(target_os = "android"))]
+    let _ = enabled;
+}
+
+pub fn set_now_playing(title: Option<&str>, artist: &str) {
+    #[cfg(target_os = "android")]
+    {
+        let ctx = ndk_context::android_context();
+        let result = (|| -> jni::errors::Result<()> {
+            let vm = unsafe { jni::JavaVM::from_raw(ctx.vm().cast())? };
+            let mut env = vm.attach_current_thread()?;
+            let activity = unsafe { jni::objects::JObject::from_raw(activity_ptr()) };
+            let t = match title {
+                Some(t) => env.new_string(t)?.into(),
+                None => jni::objects::JObject::null(),
+            };
+            let a = env.new_string(artist)?;
+            env.call_method(
+                &activity,
+                "setNowPlaying",
+                "(Ljava/lang/String;Ljava/lang/String;)V",
+                &[jni::objects::JValue::Object(&t), jni::objects::JValue::Object(&a)],
+            )?;
+            if env.exception_check()? {
+                env.exception_clear()?;
+            }
+            Ok(())
+        })();
+        if let Err(e) = result {
+            log::warn!("setNowPlaying failed: {e}");
+        }
+    }
+    #[cfg(target_os = "ios")]
+    if title.is_some() {
+        crate::safe_area::activate_playback_audio_session();
+    }
+    #[cfg(not(target_os = "android"))]
+    let _ = (title, artist);
+}
+
 pub const PIP_AVAILABLE: bool = cfg!(target_os = "android");
 
 static TOP_INSET_PX: std::sync::atomic::AtomicI32 = std::sync::atomic::AtomicI32::new(0);

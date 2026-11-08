@@ -78,6 +78,10 @@ class MainActivity : GameActivity() {
         super.onCreate(savedInstanceState)
         handleLink(intent)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (LiveCheckWorker.hasWatched(this)) {
+            LiveCheckWorker.ensureChannel(this)
+            LiveCheckWorker.schedule(this, true)
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -130,6 +134,41 @@ class MainActivity : GameActivity() {
     }
 
     fun amberRequest(json: String): Boolean = Nip55Signer.request(this, json)
+
+    fun scheduleLiveCheck(enabled: Boolean) {
+        runOnUiThread {
+            LiveCheckWorker.ensureChannel(this)
+            LiveCheckWorker.schedule(this, enabled)
+            if (enabled) {
+                requestNotificationPermission()
+                LiveCheckWorker.runNow(this)
+            }
+        }
+    }
+
+    fun setNowPlaying(title: String?, artist: String) {
+        runOnUiThread {
+            if (title == null) {
+                PlaybackService.stop(this)
+            } else {
+                requestNotificationPermission()
+                PlaybackService.start(this, title, artist)
+            }
+        }
+    }
+
+    private fun requestNotificationPermission() {
+        if (android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 1311)
+        }
+    }
+
+    override fun onDestroy() {
+        PlaybackService.stop(this)
+        super.onDestroy()
+    }
 
     @Suppress("DEPRECATION")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

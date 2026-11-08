@@ -15,3 +15,7 @@ profile.past_streams=Transmisiones anteriores
 button.open_wallet=Abrir en cartera
 button.zap=Zap
 category.most_zapped=Most zapped streamers
+notify.went_live=¡{name} está en directo!
+notify.on=Avisos activados
+notify.off=Avisarme
+notify.permission=Permite las notificaciones para recibir avisos de directos.

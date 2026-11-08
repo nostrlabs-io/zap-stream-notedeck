@@ -228,3 +228,7 @@ settings.wallet_1tap_timeout=The wallet app did not respond in time. Try again o
 category.most_zapped=Most zapped streamers
 login.invalid_bunker=Invalid bunker URL. It needs a signer key and at least one relay.
 login.bunker_waiting=Waiting for the bunker to approve...
+notify.went_live={name} went live!
+notify.on=Alerts on
+notify.off=Alert me
+notify.permission=Allow notifications to get go live alerts.

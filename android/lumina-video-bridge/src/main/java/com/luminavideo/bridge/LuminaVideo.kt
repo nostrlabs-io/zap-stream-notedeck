@@ -105,6 +105,16 @@ object LuminaVideo {
      * @return Configured ExoPlayerBridge, or null if init() wasn't called or creation failed
      */
     @JvmStatic
+    fun pauseAll() {
+        synchronized(activeBridges) { activeBridges.forEach { it.pause() } }
+    }
+
+    @JvmStatic
+    fun resumeAll() {
+        synchronized(activeBridges) { activeBridges.forEach { it.resume() } }
+    }
+
+    @JvmStatic
     fun createPlayer(nativeHandle: Long): ExoPlayerBridge? {
         val ctx = appContext
         if (ctx == null) {

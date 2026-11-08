@@ -84,7 +84,7 @@ impl Button {
                 )
                 .inner
             } else {
-                ui.label(theme::medium(text, theme::FONT_SIZE).color(text_color))
+                ui.add(egui::Label::new(theme::medium(text, theme::FONT_SIZE).color(text_color)).extend())
             }
         })
     }

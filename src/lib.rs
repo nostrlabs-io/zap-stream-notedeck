@@ -12,7 +12,7 @@ mod blossom;
 pub mod bunker;
 mod contacts;
 mod deep_link;
-mod frame_stats;
+pub mod frame_stats;
 mod nwa;
 mod hls;
 mod i18n;
@@ -28,6 +28,7 @@ mod profile_edit;
 mod relay_list;
 mod profiles;
 mod moderation;
+mod notify;
 mod route;
 mod safe_area;
 mod signer;
@@ -44,6 +45,7 @@ pub use lumina_video::*;
 #[cfg(target_os = "android")]
 #[no_mangle]
 pub fn android_main(app: android_activity::AndroidApp) {
+    frame_stats::mark_start();
     android_logger::init_once(
         android_logger::Config::default()
             .with_tag("zapstream")

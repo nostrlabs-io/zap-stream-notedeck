@@ -86,6 +86,11 @@ impl StreamPage {
                 if self.player.is_none() {
                     if let Some(u) = event.streaming().or(event.recording()) {
                         self.player = Some(StreamPlayer::new(self.render_state.as_ref(), u));
+                        let host = crate::widgets::chat_message::display_name(services, event.host());
+                        crate::android_window::set_now_playing(
+                            Some(event.title().unwrap_or(crate::i18n::t("common.untitled"))),
+                            &host,
+                        );
                     }
                 }
                 let live = event.status() == StreamStatus::Live;
@@ -370,6 +375,14 @@ impl NostrWidget for StreamPage {
             c.update(services)?;
         }
         Ok(())
+    }
+}
+
+impl Drop for StreamPage {
+    fn drop(&mut self) {
+        if self.player.is_some() {
+            crate::android_window::set_now_playing(None, "");
+        }
     }
 }
 

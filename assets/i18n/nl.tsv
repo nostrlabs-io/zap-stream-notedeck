@@ -15,3 +15,7 @@ profile.past_streams=Afgelopen Streams
 button.open_wallet=Openen in portefeuille
 button.zap=Zap
 category.most_zapped=Most zapped streamers
+notify.went_live={name} is live!
+notify.on=Meldingen aan
+notify.off=Meld het me
+notify.permission=Sta meldingen toe om te horen wanneer iemand live gaat.

@@ -9,6 +9,7 @@ use zap_stream_app::app::ZapStreamApp;
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    zap_stream_app::frame_stats::mark_start();
     pretty_env_logger::init();
 
     let options = native_options();

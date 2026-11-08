@@ -15,3 +15,7 @@ profile.past_streams=Transmissões Passadas
 button.open_wallet=Abrir na carteira
 button.zap=Zap
 category.most_zapped=Most zapped streamers
+notify.went_live={name} está ao vivo!
+notify.on=Alertas ligados
+notify.off=Avisar-me
+notify.permission=Permita notificações para receber alertas de transmissões.

@@ -15,3 +15,7 @@ profile.past_streams=Fluxuri trecute
 button.open_wallet=Deschide în portofel
 button.zap=Zap
 category.most_zapped=Most zapped streamers
+notify.went_live={name} transmite live!
+notify.on=Alerte pornite
+notify.off=Anunță-mă
+notify.permission=Permite notificările ca să afli când cineva transmite live.

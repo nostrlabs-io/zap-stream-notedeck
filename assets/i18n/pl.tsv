@@ -15,3 +15,7 @@ profile.past_streams=Poprzednie strumienie
 button.open_wallet=Otwórz w portfelu
 button.zap=Zap
 category.most_zapped=Most zapped streamers
+notify.went_live={name} nadaje na żywo!
+notify.on=Powiadomienia włączone
+notify.off=Powiadom mnie
+notify.permission=Zezwól na powiadomienia, aby wiedzieć o transmisjach na żywo.

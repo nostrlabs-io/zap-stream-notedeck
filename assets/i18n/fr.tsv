@@ -15,3 +15,7 @@ profile.past_streams=Streams passés
 button.open_wallet=Ouvrir dans le portefeuille
 button.zap=Zap
 category.most_zapped=Most zapped streamers
+notify.went_live={name} est en direct !
+notify.on=Alertes activées
+notify.off=M'alerter
+notify.permission=Autorisez les notifications pour être alerté des directs.

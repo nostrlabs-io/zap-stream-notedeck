@@ -52,3 +52,24 @@ pub fn insets() -> Insets {
 pub fn insets() -> Insets {
     Insets::default()
 }
+
+#[cfg(target_os = "ios")]
+pub fn activate_playback_audio_session() {
+    use objc2::runtime::{AnyObject, Bool};
+    use objc2::{class, msg_send};
+    static DONE: std::sync::Once = std::sync::Once::new();
+    DONE.call_once(|| unsafe {
+        let session: *mut AnyObject = msg_send![class!(AVAudioSession), sharedInstance];
+        if session.is_null() {
+            return;
+        }
+        let Ok(name) = std::ffi::CString::new("AVAudioSessionCategoryPlayback") else {
+            return;
+        };
+        let category: *mut AnyObject = msg_send![class!(NSString), stringWithUTF8String: name.as_ptr()];
+        let err: *mut *mut AnyObject = std::ptr::null_mut();
+        let ok: Bool = msg_send![session, setCategory: category, error: err];
+        let active: Bool = msg_send![session, setActive: Bool::YES, error: err];
+        log::info!("audio session playback category={} active={}", ok.as_bool(), active.as_bool());
+    });
+}

@@ -94,6 +94,9 @@ impl<'a> StreamTitle<'a> {
                         }
                     }
                     ZapButton::event(self.event).render(ui, services);
+                    if services.can_sign() {
+                        crate::widgets::notify_button::show(ui, services, &host);
+                    }
                     self.moderation_buttons(ui, services);
 
                     if let Some(url) = self.event.share_url() {
@@ -142,6 +145,9 @@ impl<'a> StreamTitle<'a> {
                 if btn.text(ui, label).clicked() {
                     services.set_following(&host, !following);
                 }
+            }
+            if services.can_sign() {
+                crate::widgets::notify_button::show(ui, services, &host);
             }
             self.moderation_buttons(ui, services);
             if let Some(url) = self.event.share_url() {
