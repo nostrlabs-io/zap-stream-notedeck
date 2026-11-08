@@ -228,3 +228,7 @@ settings.wallet_1tap=只需轻点一下，即可通过支持 Nostr Wallet Connec
 settings.wallet_1tap_button=连接钱包应用
 settings.wallet_1tap_timeout=钱包应用未及时响应。请重试或粘贴连接字符串
 settings.wallet_1tap_waiting=正在等待钱包应用批准……
+notify.went_live={name} 开播了！
+notify.on=已开启提醒
+notify.off=开播提醒我
+notify.permission=允许通知以接收开播提醒。

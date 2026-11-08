@@ -228,3 +228,7 @@ settings.wallet_1tap=Nostr 지갑 연결을 지원하는 지갑 앱을 사용하
 settings.wallet_1tap_button=지갑 앱에 연결합니다
 settings.wallet_1tap_timeout=지갑 앱이 제때 응답하지 않았습니다. 다시 시도하거나 연결 문자열을 붙여넣어 보세요
 settings.wallet_1tap_waiting=지갑 앱의 승인을 기다리는 중입니다...
+notify.went_live={name} 님이 라이브를 시작했어요!
+notify.on=알림 켜짐
+notify.off=알림 받기
+notify.permission=라이브 알림을 받으려면 알림을 허용하세요.

@@ -34,7 +34,15 @@ same Android application id and iOS bundle id. Feature status against the Flutte
 - String tables in 15 languages and a language picker.
 - Android soft keyboard insets, clipboard paste, edge to edge header around the camera cutout.
 - iOS app bundle, App Store packaging, safe area insets.
-- Frame time statistics with `ZAP_STREAM_FRAME_STATS=1`.
+- Frame time statistics with `ZAP_STREAM_FRAME_STATS=1`, including CPU work per frame and the time
+  to the first frame.
+- Go live alerts: a bell per streamer, checked on the user's relays every 15 minutes on Android,
+  with a notification that opens the stream.
+- Background audio with lock screen and notification controls on Android, playback audio session
+  and background audio mode on iOS.
+- NIP-46 bunker login, NWC 1-tap wallet connect, chat mention and emoji autocomplete, zapping a
+  chat message, stream cards, category page header, and Greek, Japanese, Korean, Russian,
+  Ukrainian and Chinese strings.
 - Tag driven release workflow building the Android APK and AAB, desktop builds and SHA-256 sums.
 
 [Unreleased]: https://github.com/nostrlabs-io/zap-stream-notedeck/compare/v1.3.0...HEAD

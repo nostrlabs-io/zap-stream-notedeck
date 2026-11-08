@@ -228,3 +228,7 @@ settings.wallet_1tap=Nostr Wallet Connectに対応したウォレットアプリ
 settings.wallet_1tap_button=ウォレットアプリに接続
 settings.wallet_1tap_timeout=ウォレットアプリの応答に時間がかかりました。もう一度お試しいただくか、接続文字列を貼り付けてください
 settings.wallet_1tap_waiting=ウォレットアプリの承認を待っています…
+notify.went_live={name} さんが配信を開始しました！
+notify.on=通知オン
+notify.off=通知を受け取る
+notify.permission=配信開始の通知を受け取るには、通知を許可してください。

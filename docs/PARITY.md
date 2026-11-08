@@ -15,7 +15,7 @@ are any. Every gap has an issue in the agentbench tracker.
 | Search: streams, profiles, hashtags | `pages/search.dart` | `src/route/search.rs` | `route::search` | done |
 | Hashtag page `/t/:id` | `pages/hashtag.dart` | `src/route/listing.rs` `Listing::Hashtag` | | done |
 | Category page `/category/:id` grid | `pages/category.dart` | `src/route/listing.rs` `Listing::Category`, `CategoriesPage` | | done |
-| Category header: cover, genres, top zapped | `category.dart`, `game_info.dart`, `category_top_zapped.dart` | none | | gap: #345 |
+| Category header: cover, genres, top zapped | `category.dart`, `game_info.dart`, `category_top_zapped.dart` | `src/route/listing.rs`, `src/zap.rs` | `route::listing`, `zap` | done (#345) |
 | Stream page: player, chat, info sheet | `pages/stream.dart`, `stream_info.dart` | `src/route/stream.rs`, `src/widgets/stream_title.rs` | | done |
 | Stream info: summary, tags as pills, share, started, live timer | `stream_info.dart`, `live_timer.dart` | `src/widgets/stream_title.rs`, `src/widgets/player_controls.rs` | `stream_info` | done |
 | Game tag label | `game_info.dart`, `utils.dart extractGameTag` | `src/stream_info.rs` `is_game_tag`, `game_label` | `stream_info` | done |
@@ -26,15 +26,15 @@ are any. Every gap has an issue in the agentbench tracker.
 | Video: fullscreen and landscape | `video_player_main.dart` | `src/widgets/stream_player.rs`, `src/android_window.rs`, `MainActivity.kt` | `android_window`, `TouchMappingTest.kt` | done |
 | Video: Android PiP | `player.dart` | `MainActivity.kt enterPip` | | done |
 | Video: reconnect on stall | `player.dart` | `src/player_health.rs` | `player_health` | done |
-| Video: background playback, lock screen controls | `player.dart allowBackgroundPlayback`, audio service | none | | gap: #64 |
+| Video: background playback, lock screen controls | `player.dart allowBackgroundPlayback`, audio service | `PlaybackService.kt` (foreground media service, MediaSession), `src/safe_area.rs activate_playback_audio_session`, `ios/Info.plist` `UIBackgroundModes audio` | emulator `dumpsys media_session` | done (#64) |
 | Keep screen on while watching | `wakelock_plus` | `MainActivity.kt FLAG_KEEP_SCREEN_ON` | | done |
 | Chat: messages, zaps, raids, timeouts, badges | `chat*.dart` | `src/widgets/chat*.rs`, `src/chat_data.rs`, `src/chat_model.rs` | `chat_model` (17), `chat_data`, `chat_events` | done |
 | Chat: reactions and emoji picker | `chat_reactions.dart`, `emoji.dart` | `src/widgets/chat_reactions.rs`, `src/widgets/emoji_picker.rs` | `widgets::emoji_picker` | done |
 | Chat: NIP-30 custom emoji | `custom_emoji.dart` | `src/chat_text.rs` | `chat_text` | done |
 | Chat: nostr: mentions and note embeds | `nostr_text.dart`, `note_embed.dart` | `src/chat_text.rs`, `src/widgets/note_embed.rs`, `src/note_ref.rs` | `chat_text` | done |
 | Chat modal: react, timeout, mute | `chat_modal.dart` | `src/widgets/chat.rs render_modal` | | done |
-| Chat modal: zap the message | `chat_modal.dart` bolt button | none | | gap: #343 |
-| Chat write: @mention and :emoji: autocomplete | `chat_write.dart` | `src/widgets/write_chat.rs` (picker button only) | | gap: #342 |
+| Chat modal: zap the message | `chat_modal.dart` bolt button | `src/widgets/chat.rs`, `src/widgets/zap.rs` | `zap` | done (#343) |
+| Chat write: @mention and :emoji: autocomplete | `chat_write.dart` | `src/widgets/write_chat.rs`, `src/chat_model.rs` | `chat_model` | done (#342) |
 | Chat write: disabled for npub login and logged out | `chat_write.dart` | `src/widgets/write_chat.rs` | | done |
 | Chat top zappers row | `chat.dart` | `src/widgets/chat.rs top_zappers_row` | | done |
 | Zap modal: amounts, custom, comment, NWC pay, invoice QR, open wallet | `widgets/zap.dart` | `src/widgets/zap.rs`, `src/zap.rs` | `zap` | done |
@@ -43,14 +43,14 @@ are any. Every gap has an issue in the agentbench tracker.
 | Follow / unfollow (kind 3) | `button_follow.dart` | `src/contacts.rs`, `src/route/profile.rs` | `contacts` | done |
 | Mute user (kind 10000) | `mute_button.dart` | `src/widgets/mute_button.rs`, `src/moderation.rs` | `moderation` | done |
 | Report and block (App Store review) | none | `src/widgets/report.rs`, `src/moderation.rs` | `moderation` | Rust only |
-| Go-live notification bell per streamer | `notifications_button.dart`, `notifications.dart` | none | | gap: #64 |
+| Go-live notification bell per streamer | `notifications_button.dart`, `notifications.dart` | `src/notify.rs`, `src/widgets/notify_button.rs`, `LiveCheckWorker.kt` (WorkManager, 15 min) | `notify` (12) | done (#64) as a local relay check; FCM push waits on notepush (#355) |
 | Login: nsec, npub (read only) | `pages/login_input.dart`, `login.dart` | `src/route/login.rs parse_key` | `route::login` | done |
 | Login: Amber (NIP-55) | `pages/login.dart` | `src/signer.rs`, `Nip55Signer.kt` | `signer` (21) | done |
-| Login: NIP-46 bunker:// | `login_input.dart` | none | | gap: #341 |
+| Login: NIP-46 bunker:// | `login_input.dart` | `src/bunker.rs`, `src/route/login.rs`, `src/signer.rs` | `bunker` | done (#341) |
 | Create account, name, avatar upload | `pages/new_account.dart`, `avatar_upload.dart` | `src/route/login.rs`, `src/blossom.rs` | `blossom`, `route::login` | done |
 | Settings: edit profile (kind 0) | `pages/settings_profile.dart` | `src/route/settings.rs`, `src/profile_edit.rs` | `profile_edit` | done |
 | Settings: wallet, paste NWC, balance, disconnect | `pages/settings_wallet.dart` | `src/route/settings.rs wallet` | | done |
-| Settings: NWC 1-tap connect (nostr+walletauth) | `settings_wallet.dart _start1TapFlow` | none | | gap: #340 |
+| Settings: NWC 1-tap connect (nostr+walletauth) | `settings_wallet.dart _start1TapFlow` | `src/nwa.rs`, `src/route/settings.rs` | `nwa` | done (#340) |
 | Settings: relays | none (fixed list) | `src/route/settings.rs`, `src/relay_list.rs` | `relay_list` | Rust only |
 | Settings: delete account | none | `src/route/settings.rs` | | Rust only |
 | Logout, multiple accounts | `pages/profile.dart` | `src/route/mod.rs Logout`, `SelectAccount` | | done |
@@ -60,17 +60,12 @@ are any. Every gap has an issue in the agentbench tracker.
 | Deep links: zap.stream/naddr, nostr: | `app.dart` routes, intent filters | `src/deep_link.rs`, `AndroidManifest.xml` | `deep_link` | done |
 | Relay health banner | `relay_health.dart` | `src/relay_health.rs`, `src/widgets/relay_banner.rs` | `relay_health` | done |
 | i18n: 15 locales (cs da de en es fi fr hu it nl pl pt ro sv tr) | `lib/i18n` | `assets/i18n/*.tsv`, `src/i18n.rs` | `i18n` | done |
-| i18n: ar el ja ko ru uk zh | `lib/i18n` | none | | gap: #346 |
+| i18n: ar el ja ko ru uk zh | `lib/i18n` | `assets/i18n/*.tsv` | `i18n` | done (#346), Arabic waits on RTL (#356) |
 | Language picker | system locale only | `src/widgets/header.rs` | | Rust only |
 
-## Gaps
+## Open
 
-- #64 go-live push notifications, background audio and lock screen controls.
 - #339 camera broadcast. Needs a decision on the capture stack, see the issue.
-- #340 NWC 1-tap connect.
-- #341 NIP-46 bunker login.
-- #342 chat @mention and :emoji: autocomplete.
-- #343 zap a chat message.
-- Stream card text is plain, Flutter renders markdown. No markdown renderer in the repo (egui_commonmark not in Cargo.lock).
-- #345 category page header.
-- #346 seven more locales.
+- #355 FCM push through notepush.nostrlabs.io, which is offline. The local relay check covers go
+  live alerts until it is back.
+- #356 right to left layout for Arabic.

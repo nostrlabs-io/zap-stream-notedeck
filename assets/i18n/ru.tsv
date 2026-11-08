@@ -228,3 +228,7 @@ settings.wallet_1tap=Подключитесь в один клик с помощ
 settings.wallet_1tap_button=Подключите кошелек
 settings.wallet_1tap_timeout=Приложение для работы с кошельком не ответило вовремя. Попробуйте ещё раз или вставьте строку подключения
 settings.wallet_1tap_waiting=Ожидаем подтверждения от приложения кошелька…
+notify.went_live={name} в эфире!
+notify.on=Уведомления включены
+notify.off=Уведомить меня
+notify.permission=Разрешите уведомления, чтобы узнавать о начале эфиров.

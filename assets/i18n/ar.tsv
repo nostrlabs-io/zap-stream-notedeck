@@ -228,3 +228,7 @@ settings.wallet_1tap=تواصل بسهولة بضغطة زر واحدة باست
 settings.wallet_1tap_button=تواصل مع تطبيق المحفظة
 settings.wallet_1tap_timeout=لم يستجب تطبيق المحفظة في الوقت المناسب. حاول مرة أخرى أو الصق سلسلة الاتصال
 settings.wallet_1tap_waiting=في انتظار موافقة تطبيق المحفظة الرقمية...
+notify.went_live={name} بدأ البث المباشر!
+notify.on=التنبيهات مفعّلة
+notify.off=نبّهني
+notify.permission=اسمح بالإشعارات لتصلك تنبيهات البث المباشر.
