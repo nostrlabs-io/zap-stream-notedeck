@@ -4722,6 +4722,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "nostr-relay-builder"
+version = "0.37.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68687a6f8b58acdd180bfc71e8f9ce9e2640ca2b187488de1cb1a96734897911"
+dependencies = [
+ "async-utility 0.2.0",
+ "async-wsocket 0.10.1",
+ "atomic-destructor 0.2.0",
+ "nostr 0.37.0",
+ "nostr-database 0.37.0",
+ "thiserror 1.0.69",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "nostr-relay-pool"
 version = "0.37.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9113,6 +9129,7 @@ dependencies = [
  "ndk-context",
  "nostr 0.37.0",
  "nostr-connect",
+ "nostr-relay-builder",
  "nostrdb",
  "notedeck",
  "nwc",

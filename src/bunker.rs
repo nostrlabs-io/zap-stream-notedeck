@@ -363,6 +363,60 @@ mod tests {
         assert!(BunkerAccounts::parse("garbage").get("aa").is_none());
     }
 
+    struct ApproveAll;
+
+    impl nostr_connect::prelude::NostrConnectSignerActions for ApproveAll {
+        fn approve(&self, _req: &Request) -> bool {
+            true
+        }
+    }
+
+    #[test]
+    fn login_and_sign_through_a_relay_with_a_remote_signer() {
+        use nostr_connect::prelude::{NostrConnectKeys, NostrConnectRemoteSigner};
+        use std::time::Duration;
+
+        let rt = tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(2)
+            .enable_all()
+            .build()
+            .unwrap();
+        let relay = rt.block_on(nostr_relay_builder::MockRelay::run()).unwrap();
+        let user = Keys::generate();
+        let keys = NostrConnectKeys { signer: Keys::generate(), user: user.clone() };
+        let remote = NostrConnectRemoteSigner::new(
+            keys,
+            [relay.url()],
+            Some("s3cret".to_string()),
+            None,
+        )
+        .unwrap();
+        let uri = remote.bunker_uri().to_string();
+        rt.spawn(async move {
+            let _ = remote.serve(ApproveAll).await;
+        });
+        std::thread::sleep(Duration::from_millis(500));
+
+        let login = begin_login(&uri)
+            .recv_timeout(Duration::from_secs(30))
+            .unwrap()
+            .unwrap();
+        assert_eq!(login.pubkey, user.public_key());
+
+        let chat = EventBuilder::new(Kind::LiveEventMessage, "hello");
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut unsigned = chat.build(login.pubkey);
+        unsigned.ensure_id();
+        sign(login.pubkey, login.uri.clone(), login.app_keys.clone(), unsigned, move |r| {
+            let _ = tx.send(r);
+        });
+        let event = rx.recv_timeout(Duration::from_secs(30)).unwrap().unwrap();
+        assert_eq!(event.kind, Kind::LiveEventMessage);
+        assert_eq!(event.pubkey, user.public_key());
+        assert_eq!(event.content, "hello");
+        assert!(event.verify().is_ok());
+    }
+
     #[test]
     fn begin_login_rejects_bad_url_immediately() {
         let rx = begin_login("hello");

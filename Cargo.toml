@@ -74,3 +74,4 @@ panic = "abort"
 [dev-dependencies]
 tokio = { version = "1.40.0", features = ["test-util"] }
 tempfile = "3"
+nostr-relay-builder = "0.37"
