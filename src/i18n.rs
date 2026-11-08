@@ -20,6 +20,13 @@ pub const LOCALES: &[(&str, &str)] = &[
     ("ro", "Română"),
     ("sv", "Svenska"),
     ("tr", "Türkçe"),
+    ("ar", "العربية"),
+    ("el", "Ελληνικά"),
+    ("ja", "日本語"),
+    ("ko", "한국어"),
+    ("ru", "Русский"),
+    ("uk", "Українська"),
+    ("zh", "中文"),
 ];
 
 static CURRENT: AtomicUsize = AtomicUsize::new(0);
@@ -41,6 +48,13 @@ fn source(code: &str) -> &'static str {
         "ro" => include_str!("../assets/i18n/ro.tsv"),
         "sv" => include_str!("../assets/i18n/sv.tsv"),
         "tr" => include_str!("../assets/i18n/tr.tsv"),
+        "ar" => include_str!("../assets/i18n/ar.tsv"),
+        "el" => include_str!("../assets/i18n/el.tsv"),
+        "ja" => include_str!("../assets/i18n/ja.tsv"),
+        "ko" => include_str!("../assets/i18n/ko.tsv"),
+        "ru" => include_str!("../assets/i18n/ru.tsv"),
+        "uk" => include_str!("../assets/i18n/uk.tsv"),
+        "zh" => include_str!("../assets/i18n/zh.tsv"),
         _ => "",
     }
 }
@@ -124,6 +138,38 @@ mod tests {
     }
 
     #[test]
+    fn every_locale_has_every_english_key() {
+        let tables = tables();
+        for (i, (code, _)) in LOCALES.iter().enumerate().skip(1) {
+            if matches!(*code, "ar" | "el" | "ja" | "ko" | "ru" | "uk" | "zh") {
+                for key in tables[0].keys() {
+                    assert!(tables[i].contains_key(key), "{code} is missing key {key}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn every_locale_keeps_english_placeholders() {
+        let tables = tables();
+        for (i, (code, _)) in LOCALES.iter().enumerate().skip(1) {
+            for (key, value) in &tables[i] {
+                let en = tables[0][key];
+                for name in ["{n}", "{name}", "{host}", "{left}", "{time}", "{when}", "{names}", "{users}", "{moderator}", "{duration}", "{error}", "{code}", "{rate}", "{unit}"] {
+                    assert_eq!(en.contains(name), value.contains(name), "{code} {key} placeholder {name}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn every_locale_has_a_source_file() {
+        for (code, _) in LOCALES {
+            assert!(!source(code).is_empty(), "{code} has no source");
+        }
+    }
+
+    #[test]
     fn falls_back_to_english_then_key() {
         let de = locale_index("de").unwrap();
         assert_eq!(lookup(de, "button.login"), "Anmelden");
@@ -135,7 +181,8 @@ mod tests {
     fn locale_codes_with_region_resolve() {
         assert_eq!(locale_index("de_DE.UTF-8"), Some(3));
         assert_eq!(locale_index("pt-BR"), locale_index("pt"));
-        assert_eq!(locale_index("ja_JP"), None);
+        assert_eq!(locale_index("ja_JP"), locale_index("ja"));
+        assert_eq!(locale_index("xx_XX"), None);
     }
 
     #[test]
