@@ -19,7 +19,7 @@ are any. Every gap has an issue in the agentbench tracker.
 | Stream page: player, chat, info sheet | `pages/stream.dart`, `stream_info.dart` | `src/route/stream.rs`, `src/widgets/stream_title.rs` | | done |
 | Stream info: summary, tags as pills, share, started, live timer | `stream_info.dart`, `live_timer.dart` | `src/widgets/stream_title.rs`, `src/widgets/player_controls.rs` | `stream_info` | done |
 | Game tag label | `game_info.dart`, `utils.dart extractGameTag` | `src/stream_info.rs` `is_game_tag`, `game_label` | `stream_info` | done |
-| Stream cards (kind 17777 / 37777) | `stream_cards.dart` | none | | gap: #344 |
+| Stream cards (kind 17777 / 37777) | `stream_cards.dart` | `src/widgets/stream_cards.rs` | `stream_cards` | done, card text is plain (no markdown) |
 | Planned countdown, ended and offline cards | `countdown.dart`, `stream.dart` | `src/widgets/stream_player.rs` `paint_state_card`, `src/player_health.rs` | `player_health` | done |
 | Video: play/pause, mute, volume | `video_player_main.dart`, `mute_button.dart` | `src/widgets/player_controls.rs`, `src/widgets/stream_player.rs` | `player_controls` | done |
 | Video: quality selector | `stream.dart _QualitySelector` | `src/widgets/player_controls.rs`, `src/hls.rs` | `hls` | done |
@@ -71,6 +71,6 @@ are any. Every gap has an issue in the agentbench tracker.
 - #341 NIP-46 bunker login.
 - #342 chat @mention and :emoji: autocomplete.
 - #343 zap a chat message.
-- #344 stream cards.
+- Stream card text is plain, Flutter renders markdown. No markdown renderer in the repo (egui_commonmark not in Cargo.lock).
 - #345 category page header.
 - #346 seven more locales.
