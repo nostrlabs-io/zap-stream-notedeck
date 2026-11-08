@@ -37,6 +37,17 @@ pub fn category_cover(tag: &str) -> Option<(&'static str, &'static [u8])> {
     }
 }
 
+const ZAP_RECEIPT_LIMIT: u64 = 5_000;
+
+fn zap_filter(stream_keys: &[String]) -> Filter {
+    let a_tags = stream_a_tags(stream_keys);
+    Filter::new()
+        .kinds([9_735])
+        .tags(a_tags.iter().map(|s| s.as_str()), 'a')
+        .limit(ZAP_RECEIPT_LIMIT)
+        .build()
+}
+
 fn stream_a_tags(streams: &[String]) -> Vec<String> {
     streams.iter().map(|k| format!("30311:{k}")).collect()
 }
@@ -254,13 +265,7 @@ impl ListingPage {
             self.zap_streams = keys.len();
             self.zap_sub = None;
         }
-        let a_tags = stream_a_tags(&keys);
-        let filter = Filter::new()
-            .kinds([9_735])
-            .tags(a_tags.iter().map(|s| s.as_str()), 'a')
-            .limit(5_000)
-            .build();
-        sub_or_poll(services.ctx, services.tx, &mut self.zaps, &mut self.zap_sub, vec![filter])
+        sub_or_poll(services.ctx, services.tx, &mut self.zaps, &mut self.zap_sub, vec![zap_filter(&keys)])
     }
 }
 
@@ -390,5 +395,25 @@ impl NostrWidget for CategoriesPage {
             &mut self.sub,
             vec![Filter::new().kinds([30_311]).limit(300).build()],
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_tags_prefix_stream_keys_with_kind() {
+        let keys = vec!["abc:one".to_string(), "def:two".to_string()];
+        assert_eq!(stream_a_tags(&keys), vec!["30311:abc:one", "30311:def:two"]);
+    }
+
+    #[test]
+    fn zap_filter_targets_receipts_for_stream_a_tags() {
+        let keys = vec!["abc:one".to_string()];
+        let json = zap_filter(&keys).json().unwrap();
+        assert!(json.contains("\"kinds\":[9735]"), "{json}");
+        assert!(json.contains("\"#a\":[\"30311:abc:one\"]"), "{json}");
+        assert!(json.contains("\"limit\":5000"), "{json}");
     }
 }

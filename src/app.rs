@@ -279,7 +279,7 @@ impl notedeck::App for ZapStreamApp {
                     self.current = RouteType::ShortsPage;
                 }
                 other => {
-                    if let Some(id) = other.strip_prefix("category:") {
+                    if let Some(id) = other.strip_prefix("category:").filter(|_| cfg!(debug_assertions)) {
                         self.widget = Box::new(page::ListingPage::new(page::Listing::Category(
                             id.to_string(),
                         )));
