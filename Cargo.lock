@@ -9154,6 +9154,7 @@ dependencies = [
  "regex",
  "rfd",
  "serde",
+ "sys-locale",
  "tempfile",
  "tokio",
  "unicode-bidi",

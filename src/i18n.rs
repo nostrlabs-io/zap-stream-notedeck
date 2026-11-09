@@ -133,10 +133,15 @@ pub fn tf(key: &'static str, args: &[(&str, &str)]) -> String {
 }
 
 pub fn detect_system_locale() -> Option<&'static str> {
-    let raw = std::env::var("LC_ALL")
+    let env = std::env::var("LC_ALL")
         .or_else(|_| std::env::var("LC_MESSAGES"))
         .or_else(|_| std::env::var("LANG"))
-        .ok()?;
+        .ok();
+    resolve_system_locale(env, sys_locale::get_locale)
+}
+
+fn resolve_system_locale(env: Option<String>, os: impl FnOnce() -> Option<String>) -> Option<&'static str> {
+    let raw = env.filter(|v| locale_index(v).is_some()).or_else(os)?;
     locale_index(&raw).map(|i| LOCALES[i].0)
 }
 
@@ -238,6 +243,14 @@ mod tests {
         assert_eq!(lookup(de, "button.login"), "Anmelden");
         assert_eq!(lookup(de, "home.live_now"), "Live now");
         assert_eq!(lookup(de, "no.such.key"), "no.such.key");
+    }
+
+    #[test]
+    fn system_locale_falls_back_to_the_os_when_lang_is_unset() {
+        assert_eq!(resolve_system_locale(None, || Some("ja-JP".into())), Some("ja"));
+        assert_eq!(resolve_system_locale(Some("C.UTF-8".into()), || Some("zh-Hans-CN".into())), Some("zh"));
+        assert_eq!(resolve_system_locale(Some("uk_UA.UTF-8".into()), || Some("ru-RU".into())), Some("uk"));
+        assert_eq!(resolve_system_locale(None, || None), None);
     }
 
     #[test]
