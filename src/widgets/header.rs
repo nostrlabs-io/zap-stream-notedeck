@@ -10,10 +10,18 @@ use egui::{
 };
 use nostrdb::Transaction;
 
-const MIN_SEARCH_WIDTH: f32 = 130.0;
+const SEARCH_PILL_FONT_SIZE: f32 = 14.0;
+const SEARCH_PILL_PADDING: f32 = 26.0;
 
 pub(crate) fn wordmark_fits(remaining: f32, word: f32, right: f32, spacing: f32) -> bool {
     remaining - spacing - word >= right
+}
+
+fn search_pill_width(ctx: &egui::Context, label: &str) -> f32 {
+    let text = crate::bidi::visual(label).into_owned();
+    let font = egui::FontId::new(SEARCH_PILL_FONT_SIZE, theme::semibold_family());
+    let text_width = ctx.fonts_mut(|f| f.layout_no_wrap(text, font, Color32::WHITE).size().x);
+    text_width + SEARCH_PILL_PADDING
 }
 
 fn is_fallback(pk: &enostr::Pubkey) -> bool {
@@ -211,10 +219,11 @@ impl Header {
                         )
                         .size()
                         .x;
+                    let pill_width = search_pill_width(ui.ctx(), crate::i18n::t("common.search"));
                     let show_word = wordmark_fits(
                         ui.available_width(),
                         word_width,
-                        right_width + MIN_SEARCH_WIDTH,
+                        right_width + ui.spacing().item_spacing.x + pill_width,
                         ui.spacing().item_spacing.x,
                     );
                     let word = show_word.then(|| {
@@ -303,7 +312,10 @@ impl Header {
 
                         Self::language_picker(ui, services);
                         let used = ui.min_rect().width();
-                        ui.ctx().data_mut(|d| d.insert_temp(right_id, used));
+                        if (used - right_width).abs() > 0.5 {
+                            ui.ctx().data_mut(|d| d.insert_temp(right_id, used));
+                            ui.ctx().request_repaint();
+                        }
                         if wide {
                             let w = (ui.available_width() - 32.0).clamp(0.0, 410.0);
                             let qid = egui::Id::new("search-query");
@@ -391,5 +403,70 @@ mod tests {
     fn wordmark_hidden_when_right_side_needs_the_room() {
         assert!(wordmark_fits(400.0, 100.0, 200.0, 10.0));
         assert!(!wordmark_fits(300.0, 100.0, 200.0, 10.0));
+    }
+
+    fn search_labels() -> Vec<(String, String)> {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("assets/i18n");
+        let mut out = Vec::new();
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            if path.extension().is_some_and(|e| e == "tsv") {
+                let code = path.file_stem().unwrap().to_string_lossy().to_string();
+                let text = std::fs::read_to_string(&path).unwrap();
+                let label = text
+                    .lines()
+                    .find_map(|l| l.strip_prefix("common.search="))
+                    .unwrap_or("Search");
+                out.push((code, label.to_string()));
+            }
+        }
+        out
+    }
+
+    #[test]
+    fn wordmark_plus_widest_search_pill_fits_or_wordmark_hides() {
+        let ctx = egui::Context::default();
+        theme::install_fonts(&ctx);
+        let labels = search_labels();
+        let mut word = 0.0;
+        let mut pills = Vec::new();
+        for _ in 0..2 {
+            word = 0.0;
+            pills.clear();
+            let mut out = ctx.run_pass(Default::default(), |ctx| {
+                word = ctx.fonts_mut(|f| {
+                    f.layout_no_wrap(
+                        "zap.stream".into(),
+                        egui::FontId::new(19., theme::display_bold()),
+                        Color32::WHITE,
+                    )
+                    .size()
+                    .x
+                });
+                for (code, label) in &labels {
+                    pills.push((code.clone(), search_pill_width(ctx, label)));
+                }
+            });
+            out.textures_delta.clear();
+        }
+        let spacing = 10.0;
+        let right = 28.0 + spacing + 80.0;
+        assert!(labels.len() >= 20);
+        let mut widest = 0.0f32;
+        for (code, pill) in &pills {
+            let pill = *pill;
+            widest = widest.max(pill);
+            for avail in (200..=420).step_by(5) {
+                let avail = avail as f32;
+                let logo = 22.0 + spacing;
+                let remaining = avail - logo;
+                if wordmark_fits(remaining, word, right + spacing + pill, spacing) {
+                    let total = logo + word + spacing + right + spacing + pill;
+                    assert!(total <= avail, "{code} at {avail}: {total}");
+                }
+            }
+        }
+        assert!(widest > 60.0, "fonts did not load: {widest}");
+        eprintln!("widest search pill {widest}, wordmark {word}");
     }
 }
