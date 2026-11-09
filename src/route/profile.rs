@@ -117,7 +117,7 @@ impl NostrWidget for ProfilePage {
                         let me = *services.ctx.accounts.get_selected_account().key.pubkey.bytes();
                         let can_sign = services.can_sign();
                         let is_me = me == self.pubkey;
-                        ui.horizontal(|ui| {
+                        ui.horizontal_wrapped(|ui| {
                             if !is_me && can_sign {
                                 let following =
                                     contacts::is_following(&services.own_contact_tags(), &hex);

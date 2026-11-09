@@ -75,6 +75,16 @@ impl Button {
         let (_, text_color) = self.colors();
         let full = self.full_width;
         let inset = (self.padding.left + self.padding.right) as f32;
+        if !full && ui.layout().is_horizontal() && ui.layout().main_wrap {
+            let galley = ui.painter().layout_no_wrap(
+                text.to_string(),
+                egui::FontId::proportional(theme::FONT_SIZE),
+                text_color,
+            );
+            if galley.size().x + inset > ui.max_rect().right() - ui.cursor().left() {
+                ui.end_row();
+            }
+        }
         self.show(ui, |ui| {
             if full {
                 ui.set_min_width((ui.available_width() - inset).max(0.0));
