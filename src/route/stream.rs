@@ -236,7 +236,7 @@ impl StreamPage {
                     bottom: 4,
                 })
                 .show(ui, |ui| {
-                    ui.label(crate::theme::semibold("Stream chat", 15.0));
+                    ui.label(crate::theme::semibold(crate::i18n::t("stream.chat_title"), 15.0));
                 });
             ui.painter().hline(
                 ui.max_rect().x_range(),

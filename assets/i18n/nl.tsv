@@ -19,3 +19,4 @@ notify.went_live={name} is live!
 notify.on=Meldingen aan
 notify.off=Meld het me
 notify.permission=Sta meldingen toe om te horen wanneer iemand live gaat.
+stream.chat_title=Streamchat

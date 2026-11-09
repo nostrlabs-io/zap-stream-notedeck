@@ -19,3 +19,4 @@ notify.went_live={name} canlı yayında!
 notify.on=Bildirimler açık
 notify.off=Bana haber ver
 notify.permission=Canlı yayın bildirimleri için bildirimlere izin verin.
+stream.chat_title=Yayın sohbeti

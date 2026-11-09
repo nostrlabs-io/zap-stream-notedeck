@@ -19,3 +19,4 @@ notify.went_live={name} sänder live!
 notify.on=Aviseringar på
 notify.off=Meddela mig
 notify.permission=Tillåt aviseringar för att få veta när någon sänder live.
+stream.chat_title=Streamchatt

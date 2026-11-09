@@ -349,6 +349,21 @@ mod tests {
     }
 
     #[test]
+    fn wallet_paragraph_keeps_full_stop_at_line_end_at_rendered_width() {
+        let text = "الصق سلسلة ربط محفظة نوستر (Nostr Wallet Connect) لإرسال \"زابس\" من خلال هذا التطبيق.";
+        let mut measure = |s: &str| s.chars().count() as f32 * 7.0;
+        let rows = wrap_logical(text, 520.0, &mut measure);
+        assert!(rows.len() >= 2);
+        assert_eq!(rows.join(" "), text);
+        let last = rows.last().unwrap();
+        assert!(last.ends_with('.'));
+        let shown = visual_rows(&rows);
+        let last_shown = shown.split('\n').last().unwrap();
+        assert!(last_shown.contains("التطبيق."));
+        assert!(!last_shown.starts_with(' ') && !last_shown.ends_with(' '));
+    }
+
+    #[test]
     fn detects_rtl_text() {
         assert!(is_rtl_text("مرحبا"));
         assert!(!is_rtl_text("hello"));

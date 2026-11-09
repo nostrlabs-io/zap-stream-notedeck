@@ -232,3 +232,4 @@ notify.went_live={name} 님이 라이브를 시작했어요!
 notify.on=알림 켜짐
 notify.off=알림 받기
 notify.permission=라이브 알림을 받으려면 알림을 허용하세요.
+stream.chat_title=스트림 채팅

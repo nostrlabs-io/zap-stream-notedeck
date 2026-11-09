@@ -19,3 +19,4 @@ notify.went_live={name} élő adásba kezdett!
 notify.on=Értesítés be
 notify.off=Értesíts
 notify.permission=Engedélyezd az értesítéseket, hogy tudj az élő adásokról.
+stream.chat_title=Stream chat

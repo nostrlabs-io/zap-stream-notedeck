@@ -19,3 +19,4 @@ notify.went_live={name} est en direct !
 notify.on=Alertes activées
 notify.off=M'alerter
 notify.permission=Autorisez les notifications pour être alerté des directs.
+stream.chat_title=Chat du stream

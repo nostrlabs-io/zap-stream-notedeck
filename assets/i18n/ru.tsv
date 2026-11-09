@@ -232,3 +232,4 @@ notify.went_live={name} в эфире!
 notify.on=Уведомления включены
 notify.off=Уведомить меня
 notify.permission=Разрешите уведомления, чтобы узнавать о начале эфиров.
+stream.chat_title=Чат трансляции

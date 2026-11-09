@@ -19,3 +19,4 @@ notify.went_live={name} er gået live!
 notify.on=Advarsler til
 notify.off=Giv mig besked
 notify.permission=Tillad notifikationer for at få besked, når der sendes live.
+stream.chat_title=Streamchat

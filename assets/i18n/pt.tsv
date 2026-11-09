@@ -19,3 +19,4 @@ notify.went_live={name} está ao vivo!
 notify.on=Alertas ligados
 notify.off=Avisar-me
 notify.permission=Permita notificações para receber alertas de transmissões.
+stream.chat_title=Chat da transmissão

@@ -19,3 +19,4 @@ notify.went_live={name} aloitti lähetyksen!
 notify.on=Ilmoitukset päällä
 notify.off=Ilmoita minulle
 notify.permission=Salli ilmoitukset saadaksesi tiedon lähetyksistä.
+stream.chat_title=Streamin chat

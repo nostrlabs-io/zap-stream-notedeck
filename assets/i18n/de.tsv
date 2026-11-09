@@ -19,3 +19,4 @@ notify.went_live={name} ist jetzt live!
 notify.on=Benachrichtigung an
 notify.off=Benachrichtigen
 notify.permission=Erlaube Benachrichtigungen, um zu erfahren, wann jemand live geht.
+stream.chat_title=Stream-Chat

@@ -232,3 +232,4 @@ notify.went_live={name} さんが配信を開始しました！
 notify.on=通知オン
 notify.off=通知を受け取る
 notify.permission=配信開始の通知を受け取るには、通知を許可してください。
+stream.chat_title=配信チャット

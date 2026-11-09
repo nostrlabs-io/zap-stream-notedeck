@@ -19,3 +19,4 @@ notify.went_live={name} è in diretta!
 notify.on=Avvisi attivi
 notify.off=Avvisami
 notify.permission=Consenti le notifiche per ricevere gli avvisi delle dirette.
+stream.chat_title=Chat dello stream

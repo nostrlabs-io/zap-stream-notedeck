@@ -232,3 +232,4 @@ notify.went_live={name} went live!
 notify.on=Alerts on
 notify.off=Alert me
 notify.permission=Allow notifications to get go live alerts.
+stream.chat_title=Stream chat
