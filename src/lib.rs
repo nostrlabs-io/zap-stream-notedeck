@@ -13,6 +13,7 @@ mod blossom;
 pub mod bunker;
 mod contacts;
 mod deep_link;
+mod font_fallback;
 pub mod frame_stats;
 mod nwa;
 mod hls;

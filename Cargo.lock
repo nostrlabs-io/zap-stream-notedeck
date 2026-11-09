@@ -9127,6 +9127,7 @@ dependencies = [
  "eframe",
  "egui",
  "egui-wgpu",
+ "egui_system_fonts",
  "ehttp 0.5.0",
  "enostr",
  "fixed_decimal",

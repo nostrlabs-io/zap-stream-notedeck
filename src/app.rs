@@ -197,6 +197,7 @@ impl ZapStreamApp {
         }
         self.fonts_set = true;
         crate::theme::install_fonts(ctx);
+        ctx.add_font_provider(std::sync::Arc::new(crate::font_fallback::CjkPunctuation::default()));
     }
 }
 
