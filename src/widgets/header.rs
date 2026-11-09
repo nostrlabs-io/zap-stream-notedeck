@@ -10,6 +10,12 @@ use egui::{
 };
 use nostrdb::Transaction;
 
+const MIN_SEARCH_WIDTH: f32 = 130.0;
+
+pub(crate) fn wordmark_fits(remaining: f32, word: f32, right: f32, spacing: f32) -> bool {
+    remaining - spacing - word >= right
+}
+
 fn is_fallback(pk: &enostr::Pubkey) -> bool {
     pk.bytes() == notedeck::FALLBACK_PUBKEY().bytes()
 }
@@ -193,13 +199,29 @@ impl Header {
                     .sense(Sense::click())
                     .ui(ui)
                     .on_hover_and_drag_cursor(CursorIcon::PointingHand);
-                    let word = ui
-                        .add(
-                            egui::Label::new(theme::display_bold_text("zap.stream", 19.).color(PRIMARY))
-                                .sense(Sense::click()),
+                    let right_id = egui::Id::new("header-right-width");
+                    let right_width: f32 = ui.ctx().data(|d| d.get_temp(right_id)).unwrap_or(0.0);
+                    let word_text = theme::display_bold_text("zap.stream", 19.).color(PRIMARY);
+                    let word_width = egui::WidgetText::from(word_text.clone())
+                        .into_galley(
+                            ui,
+                            Some(egui::TextWrapMode::Extend),
+                            f32::INFINITY,
+                            egui::TextStyle::Body,
                         )
-                        .on_hover_and_drag_cursor(CursorIcon::PointingHand);
-                    if logo.clicked() || word.clicked() {
+                        .size()
+                        .x;
+                    let show_word = wordmark_fits(
+                        ui.available_width(),
+                        word_width,
+                        right_width + MIN_SEARCH_WIDTH,
+                        ui.spacing().item_spacing.x,
+                    );
+                    let word = show_word.then(|| {
+                        ui.add(egui::Label::new(word_text).sense(Sense::click()))
+                            .on_hover_and_drag_cursor(CursorIcon::PointingHand)
+                    });
+                    if logo.clicked() || word.is_some_and(|w| w.clicked()) {
                         services.navigate(RouteType::HomePage);
                     }
 
@@ -280,6 +302,8 @@ impl Header {
                         }
 
                         Self::language_picker(ui, services);
+                        let used = ui.min_rect().width();
+                        ui.ctx().data_mut(|d| d.insert_temp(right_id, used));
                         if wide {
                             let w = (ui.available_width() - 32.0).clamp(0.0, 410.0);
                             let qid = egui::Id::new("search-query");
@@ -356,5 +380,16 @@ impl Header {
         );
         let _ = (vec2(0., 0.), Color32::TRANSPARENT, TEXT);
         r.response
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wordmark_hidden_when_right_side_needs_the_room() {
+        assert!(wordmark_fits(400.0, 100.0, 200.0, 10.0));
+        assert!(!wordmark_fits(300.0, 100.0, 200.0, 10.0));
     }
 }
