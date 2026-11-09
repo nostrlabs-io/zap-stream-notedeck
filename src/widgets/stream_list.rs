@@ -25,8 +25,8 @@ impl<'a> StreamList<'a> {
 
     pub fn render(&mut self, ui: &mut Ui, services: &mut RouteServices<'_, '_>) -> Response {
         let cols = match ui.available_width() as u16 {
-            0..480 => 1,
-            480..820 => 2,
+            0..400 => 1,
+            400..820 => 2,
             820..1200 => 3,
             1200..1500 => 4,
             1500..2000 => 5,
