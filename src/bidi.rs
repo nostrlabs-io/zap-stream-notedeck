@@ -30,6 +30,8 @@ fn tokens(text: &str, levels: &[Level], start: usize, end: usize) -> Vec<Token> 
 
 fn push_token(out: &mut String, text: &str, token: &Token) {
     let slice = &text[token.start..token.end];
+    let slice: String = slice.chars().filter(|c| !is_isolate(*c)).collect();
+    let slice = slice.as_str();
     if token.level.is_rtl() {
         out.extend(slice.chars().map(|c| get_mirrored(c).unwrap_or(c)));
     } else {
@@ -37,14 +39,69 @@ fn push_token(out: &mut String, text: &str, token: &Token) {
     }
 }
 
+const LRI: char = '\u{2066}';
+const PDI: char = '\u{2069}';
+
+fn is_isolate(c: char) -> bool {
+    c == LRI || c == PDI
+}
+
+fn has_strong_rtl(word: &str) -> bool {
+    word.chars().any(|c| {
+        matches!(unicode_bidi::bidi_class(c), unicode_bidi::BidiClass::R | unicode_bidi::BidiClass::AL)
+    })
+}
+
+fn isolate_ltr_runs(text: &str) -> String {
+    let mut out = String::with_capacity(text.len() + 16);
+    for (li, line) in text.split('\n').enumerate() {
+        if li > 0 {
+            out.push('\n');
+        }
+        let mut open = false;
+        let mut pending_space = String::new();
+        for (wi, word) in line.split(' ').enumerate() {
+            let ltr = !word.is_empty()
+                && !has_strong_rtl(word)
+                && word.chars().any(|c| c.is_alphanumeric());
+            if wi > 0 {
+                if ltr && open {
+                    out.push_str(&pending_space);
+                } else {
+                    if open {
+                        out.push(PDI);
+                        open = false;
+                    }
+                    out.push_str(&pending_space);
+                }
+            }
+            pending_space = " ".to_string();
+            if ltr && !open {
+                out.push(LRI);
+                open = true;
+            } else if !ltr && open {
+                out.push(PDI);
+                open = false;
+            }
+            out.push_str(word);
+        }
+        if open {
+            out.push(PDI);
+        }
+    }
+    out
+}
+
 pub fn visual(text: &str) -> Cow<'_, str> {
     if text.is_empty() || text.is_ascii() {
         return Cow::Borrowed(text);
     }
-    let info = BidiInfo::new(text, None);
-    if !info.has_rtl() {
+    if !BidiInfo::new(text, None).has_rtl() {
         return Cow::Borrowed(text);
     }
+    let marked = isolate_ltr_runs(text);
+    let text = marked.as_str();
+    let info = BidiInfo::new(text, None);
     let mut out = String::with_capacity(text.len());
     for para in &info.paragraphs {
         let line_end = if para.range.end > para.range.start
@@ -141,6 +198,14 @@ pub fn wrap_rows(ctx: &egui::Context, text: &str, font: egui::FontId, width: f32
         })
     };
     visual_rows(&wrap_logical(text, width, &mut measure))
+}
+
+pub fn wrapped_text(ctx: &egui::Context, text: &str, font: egui::FontId, width: f32) -> String {
+    if crate::i18n::is_rtl() && is_rtl_text(text) && width.is_finite() && width > 0.0 {
+        wrap_rows(ctx, text, font, width)
+    } else {
+        text.to_string()
+    }
 }
 
 pub fn wrapped_label(ui: &mut egui::Ui, text: &str, font: egui::FontId, color: egui::Color32) -> egui::Response {
@@ -246,6 +311,41 @@ mod tests {
     fn explicit_newlines_start_new_rows() {
         let mut measure = |s: &str| s.chars().count() as f32;
         assert_eq!(wrap_logical("أ ب\nج", 100.0, &mut measure), ["أ ب", "ج"]);
+    }
+
+    const CHAT: &str = "مرحبا بالجميع في هذا البث المباشر الرائع، أتمنى لكم وقتا ممتعا ومفيدا مع الجميع اليوم";
+    const TITLE: &str = "بث مباشر لتجربة لعبة المغامرات الجديدة مع المجتمع";
+
+    fn restores(text: &str, width: f32) -> usize {
+        let mut measure = |s: &str| s.chars().count() as f32 * 7.5;
+        let rows = wrap_logical(text, width, &mut measure);
+        let shown = visual_rows(&rows);
+        let restored: Vec<String> = shown.split('\n').map(|l| visual(l).into_owned()).collect();
+        assert_eq!(restored.join(" "), text);
+        rows.len()
+    }
+
+    #[test]
+    fn long_chat_message_wrapped_at_300px_restores_in_logical_order() {
+        assert!(restores(CHAT, 300.0) > 1);
+    }
+
+    #[test]
+    fn long_title_wrapped_at_300px_restores_in_logical_order() {
+        assert!(restores(TITLE, 300.0) > 1);
+    }
+
+    #[test]
+    fn numbers_and_npubs_stay_intact_and_ltr_in_arabic() {
+        let npub = "npub1qqqsyqcyq5rqwzqfpg9scrgwpugpzysnzs23v9ccrydpk8qarc0sx3k0mf";
+        let text = format!("أرسل 2,100 sats إلى {npub} الآن");
+        let shown = visual(&text);
+        assert!(shown.contains("2,100"));
+        assert!(shown.contains("sats"));
+        assert!(shown.contains(npub));
+        let pos = |s: &str| shown.find(s).unwrap();
+        assert!(pos("2,100 sats") < shown.len());
+        assert!(!shown.contains(LRI) && !shown.contains(PDI));
     }
 
     #[test]

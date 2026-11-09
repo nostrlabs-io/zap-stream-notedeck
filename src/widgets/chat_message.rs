@@ -80,7 +80,9 @@ pub fn render(ui: &mut Ui, services: &mut RouteServices<'_, '_>, data: &ChatData
                 for seg in msg.segments {
                     match seg {
                         Segment::Text(t) => {
-                            job.append(&crate::bidi::visual(t), lead, text_format(ui, Color32::WHITE));
+                            let fmt = text_format(ui, Color32::WHITE);
+                            let shown = crate::bidi::wrapped_text(ui.ctx(), t, fmt.font_id.clone(), ui.available_width());
+                            job.append(&shown, lead, fmt);
                             lead = 0.0;
                         }
                         Segment::Hashtag(t) => {

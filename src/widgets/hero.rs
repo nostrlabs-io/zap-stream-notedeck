@@ -109,7 +109,12 @@ impl<'a> Hero<'a> {
         };
         let title_width = if stacked { w - pad * 2.0 } else { (w * 0.55).max(200.0) };
         let mut title_job = egui::text::LayoutJob::single_section(
-            crate::bidi::visual(self.event.title().unwrap_or(crate::i18n::t("common.untitled"))).into_owned(),
+            crate::bidi::wrapped_text(
+                ui.ctx(),
+                self.event.title().unwrap_or(crate::i18n::t("common.untitled")),
+                egui::FontId::new(title_size, theme::display_family()),
+                title_width,
+            ),
             egui::TextFormat::simple(egui::FontId::new(title_size, theme::display_family()), TEXT),
         );
         title_job.wrap.max_width = title_width;

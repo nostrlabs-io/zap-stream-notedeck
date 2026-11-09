@@ -58,7 +58,12 @@ impl<'a> StreamTitle<'a> {
                 ui.with_layout(egui::Layout::top_down(crate::bidi::text_align()), |ui| {
                     ui.add(
                         Label::new(theme::display(
-                            crate::bidi::visual(self.event.title().unwrap_or(crate::i18n::t("common.untitled"))),
+                            crate::bidi::wrapped_text(
+                                ui.ctx(),
+                                self.event.title().unwrap_or(crate::i18n::t("common.untitled")),
+                                egui::FontId::new(size, theme::display_family()),
+                                ui.available_width(),
+                            ),
                             size,
                         ))
                         .wrap_mode(TextWrapMode::Wrap),
