@@ -61,6 +61,7 @@ are any. Every gap has an issue in the agentbench tracker.
 | Relay health banner | `relay_health.dart` | `src/relay_health.rs`, `src/widgets/relay_banner.rs` | `relay_health` | done |
 | i18n: 15 locales (cs da de en es fi fr hu it nl pl pt ro sv tr) | `lib/i18n` | `assets/i18n/*.tsv`, `src/i18n.rs` | `i18n` | done |
 | i18n: ar el ja ko ru uk zh | `lib/i18n` | `assets/i18n/*.tsv` | `i18n` | done (#346), Arabic waits on RTL (#356) |
+| i18n: CJK, Greek, Cyrillic glyphs on mobile | n/a | `src/font_fallback.rs`, `src/i18n.rs` | `font_fallback`, `i18n` | done (#357): system fonts, no bundled font; checked on the Android 14 emulator (NotoSansCJK) and iOS 18.1 simulator in ja zh ko el ru uk, OS locale picked up via `sys-locale` |
 | Language picker | system locale only | `src/widgets/header.rs` | | Rust only |
 
 ## Open
