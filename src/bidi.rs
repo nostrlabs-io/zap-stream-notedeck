@@ -1,5 +1,5 @@
 use std::borrow::Cow;
-use unicode_bidi::{BidiInfo, Level};
+use unicode_bidi::{BidiClass, BidiInfo, Level};
 use unicode_bidi_mirroring::get_mirrored;
 
 struct Token {
@@ -8,34 +8,47 @@ struct Token {
     level: Level,
 }
 
+fn is_rtl_letter(c: char) -> bool {
+    (c.is_alphanumeric()
+        && matches!(unicode_bidi::bidi_class(c), BidiClass::R | BidiClass::AL))
+        || unicode_bidi::bidi_class(c) == BidiClass::NSM
+}
+
 fn tokens(text: &str, levels: &[Level], start: usize, end: usize) -> Vec<Token> {
     let mut out: Vec<Token> = Vec::new();
-    let mut last_space = false;
+    let mut last_letter = false;
     for (i, c) in text[start..end].char_indices() {
         let at = start + i;
         let level = levels[at];
-        let space = c.is_whitespace();
+        let letter = level.is_rtl() && is_rtl_letter(c);
         match out.last_mut() {
-            Some(t) if t.level == level && space == last_space => t.end = at + c.len_utf8(),
+            Some(t) if letter && last_letter && t.level == level => t.end = at + c.len_utf8(),
             _ => out.push(Token {
                 start: at,
                 end: at + c.len_utf8(),
                 level,
             }),
         }
-        last_space = space;
+        last_letter = letter;
     }
     out
 }
 
 fn push_token(out: &mut String, text: &str, token: &Token) {
-    let slice = &text[token.start..token.end];
-    let slice: String = slice.chars().filter(|c| !is_isolate(*c)).collect();
-    let slice = slice.as_str();
+    let slice: String = text[token.start..token.end]
+        .chars()
+        .filter(|c| !is_isolate(*c))
+        .collect();
     if token.level.is_rtl() {
-        out.extend(slice.chars().map(|c| get_mirrored(c).unwrap_or(c)));
+        out.extend(slice.chars().map(|c| {
+            if is_rtl_letter(c) {
+                c
+            } else {
+                get_mirrored(c).unwrap_or(c)
+            }
+        }));
     } else {
-        out.push_str(slice);
+        out.push_str(&slice);
     }
 }
 
@@ -359,8 +372,44 @@ mod tests {
         assert!(last.ends_with('.'));
         let shown = visual_rows(&rows);
         let last_shown = shown.split('\n').last().unwrap();
-        assert!(last_shown.contains("التطبيق."));
-        assert!(!last_shown.starts_with(' ') && !last_shown.ends_with(' '));
+        assert_eq!(last_shown, ".التطبيق هذا");
+    }
+
+    #[test]
+    fn trailing_full_stop_goes_to_the_visual_left_end_of_the_row() {
+        assert_eq!(visual("هذا التطبيق."), ".التطبيق هذا");
+    }
+
+    #[test]
+    fn question_mark_ends_at_the_visual_left() {
+        assert_eq!(visual("هل أنت مستخدم؟"), "؟مستخدم أنت هل");
+    }
+
+    #[test]
+    fn leading_quote_goes_to_the_visual_right_and_is_mirrored_pair_kept() {
+        assert_eq!(visual("\"زابس\" من"), "من \"زابس\"");
+    }
+
+    #[test]
+    fn latin_run_with_brackets_stays_intact_and_brackets_face_correctly() {
+        let shown = visual("نوستر (Nostr Wallet Connect) لإرسال");
+        assert!(shown.contains("(Nostr Wallet Connect)"));
+        let ws: Vec<&str> = shown.split(' ').collect();
+        assert_eq!(ws.first(), Some(&"لإرسال"));
+        assert_eq!(ws.last(), Some(&"نوستر"));
+    }
+
+    #[test]
+    fn brackets_around_arabic_are_mirrored() {
+        assert_eq!(visual("(مرحبا) يا"), "يا (مرحبا)");
+    }
+
+    #[test]
+    fn player_time_label_is_an_ltr_run_inside_arabic() {
+        let shown = visual("المدة 1:23:45 متبقية");
+        assert!(shown.contains("1:23:45"));
+        let ws: Vec<&str> = shown.split(' ').collect();
+        assert_eq!(ws, ["متبقية", "1:23:45", "المدة"]);
     }
 
     #[test]
