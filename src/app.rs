@@ -242,6 +242,8 @@ impl notedeck::App for ZapStreamApp {
         self.setup_fonts(ui.ctx());
         crate::android_window::pump(ui.ctx());
         self.load_locale(ctx);
+        let settings_dir = ctx.path.path(notedeck::DataPathType::Setting);
+        crate::consent::init(&settings_dir);
         crate::theme::apply_style(ui.ctx());
         if let Some(s) = self.frame_stats.as_mut() {
             s.tick();
@@ -474,6 +476,8 @@ impl notedeck::App for ZapStreamApp {
                     crate::widgets::report::show(ui, &mut svc);
                 });
             });
+
+        crate::consent::show_terms(ui.ctx(), &settings_dir);
 
         let profiles = self.profiles.next();
         if !profiles.is_empty() {

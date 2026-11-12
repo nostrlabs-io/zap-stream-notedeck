@@ -34,8 +34,8 @@ playback and declares the `audio` background mode.
 ## Releasing
 
 The version lives in `Cargo.toml` only. Android `versionName` and iOS `CFBundleShortVersionString`
-are read from it, and the build number is `major*1000000 + minor*10000 + patch*100` (1.3.0 is
-1030000), above the Flutter app's split APK codes (2024 for arm64 on 1.2.3).
+are read from it, and the build number is `major*1000000 + minor*10000 + patch*100` (1.3.1 is
+1030100), above the Flutter app's split APK codes (2024 for arm64 on 1.2.3).
 
 1. Bump `version` in `Cargo.toml`, run `cargo check` so `Cargo.lock` follows, and add a
    `## [x.y.z]` section to `CHANGELOG.md`.

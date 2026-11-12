@@ -43,6 +43,7 @@ impl<'a> StreamList<'a> {
                 }
                 let mut events: Vec<_> = self.streams.iter().collect();
                 crate::moderation::retain_unblocked(&mut events, |n| *n.host(), |h| services.is_muted(h));
+                events.retain(|n| !crate::consent::hidden_by_filter(n.sensitive()));
                 events.sort_by(|a, b| {
                     a.status()
                         .cmp(&b.status())

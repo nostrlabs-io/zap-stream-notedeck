@@ -6,6 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-12
+
+Store review readiness for the Play and App Store submissions.
+
+### Added
+
+- Terms of service and content policy shown on first launch, accepted before any stream or chat is
+  visible, with a link to zap.stream/tos and the developer contact.
+- Sensitive content filter: streams with a content warning are hidden unless turned on in settings.
+- Terms and developer contact rows in settings.
+
 ## [1.3.0] - 2026-11-08
 
 The first release of the native Rust app. It replaces the Flutter app (last release 1.2.3) under the
@@ -45,5 +56,6 @@ same Android application id and iOS bundle id. Feature status against the Flutte
   Ukrainian and Chinese strings.
 - Tag driven release workflow building the Android APK and AAB, desktop builds and SHA-256 sums.
 
-[Unreleased]: https://github.com/nostrlabs-io/zap-stream-notedeck/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/nostrlabs-io/zap-stream-notedeck/compare/v1.3.1...HEAD
+[1.3.1]: https://github.com/nostrlabs-io/zap-stream-notedeck/compare/v1.3.0...v1.3.1
 [1.3.0]: https://github.com/nostrlabs-io/zap-stream-notedeck/releases/tag/v1.3.0

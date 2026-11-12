@@ -154,6 +154,22 @@ impl SettingsPage {
                 section: SettingsSection::Broadcast,
             });
         }
+        let sensitive = crate::consent::show_sensitive();
+        let sensitive_desc = if sensitive {
+            crate::i18n::t("settings.sensitive_on")
+        } else {
+            crate::i18n::t("settings.sensitive_off")
+        };
+        if Self::row(ui, crate::i18n::t("settings.sensitive"), sensitive_desc) {
+            let dir = services.ctx.path.path(notedeck::DataPathType::Setting);
+            crate::consent::set_show_sensitive(&dir, !sensitive);
+        }
+        if Self::row(ui, crate::i18n::t("settings.terms"), crate::i18n::t("settings.terms_desc")) {
+            crate::android_window::open_url(ui.ctx(), crate::consent::TERMS_URL);
+        }
+        if Self::row(ui, crate::i18n::t("settings.contact"), crate::consent::CONTACT_EMAIL) {
+            crate::android_window::open_url(ui.ctx(), &format!("mailto:{}", crate::consent::CONTACT_EMAIL));
+        }
         if Self::row(ui, crate::i18n::t("button.logout"), crate::i18n::t("settings.logout_desc")) {
             let me = services.ctx.accounts.get_selected_account().key.pubkey;
             services.action(RouteAction::Logout(me));

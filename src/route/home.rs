@@ -360,6 +360,7 @@ impl NostrWidget for HomePage {
                             })
                             .filter(|e| e.can_play())
                             .filter(|e| !services.is_muted(e.host()))
+                            .filter(|e| !crate::consent::hidden_by_filter(e.sensitive()))
                             .collect();
 
                         let mut live: Vec<&Note> = events

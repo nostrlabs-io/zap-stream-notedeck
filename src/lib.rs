@@ -11,6 +11,7 @@ mod chat_model;
 mod chat_text;
 mod blossom;
 pub mod bunker;
+mod consent;
 mod contacts;
 mod deep_link;
 mod font_fallback;

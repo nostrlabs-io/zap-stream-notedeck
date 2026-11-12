@@ -52,6 +52,8 @@ pub trait StreamInfo {
     fn share_url(&self) -> Option<String>;
 
     fn goal(&self) -> Option<[u8; 32]>;
+
+    fn sensitive(&self) -> bool;
 }
 
 pub fn is_game_tag(tag: &str) -> bool {
@@ -225,6 +227,11 @@ impl StreamInfo for Note<'_> {
             .to_bech32()
             .ok()
             .map(|n| format!("https://zap.stream/{}", n))
+    }
+
+    fn sensitive(&self) -> bool {
+        self.get_tag_value("content_warning").is_some()
+            || self.get_tag_value("content-warning").is_some()
     }
 
     fn goal(&self) -> Option<[u8; 32]> {
