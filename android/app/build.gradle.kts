@@ -21,12 +21,12 @@ fun versionCodeOf(version: String): Int {
 
 android {
     namespace = "stream.zap.app"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "io.nostrlabs.zap_stream_flutter"
         minSdk = 26      // Required for HardwareBuffer API
-        targetSdk = 35
+        targetSdk = 36
         versionCode = System.getenv("VERSION_CODE")?.toInt() ?: versionCodeOf(cargoVersion)
         versionName = cargoVersion
 
