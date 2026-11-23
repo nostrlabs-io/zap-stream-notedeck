@@ -31,7 +31,15 @@ From the Play Console help page "Add preview assets to showcase your app" (check
 
 ## Video scenes
 
-The emulator's H.264 decoder cannot show a real picture (black or tinted frames), so by default the script skips the stream page scenes rather than ship a broken player. Run `STORE_SHOTS_VIDEO=1 scripts/store-shots.sh` against a device or emulator with a working decoder to add them.
+The emulator's H.264 decoder cannot show a real picture, so by default the script skips the stream page scenes rather than ship a broken player. Tried on the API 34 Google APIs x86_64 image (the only one installed): the goldfish hardware H.264 decoder fails with error 0xe, the software decoder (`androidboot.qemu.hwcodec.avcdec=0`, used by the script) renders black or red tinted frames, `-gpu host` headless cannot start the renderer, and `-gpu angle_indirect` and `-gpu guest` give a black or still black video.
+
+These three scenes need a physical phone attached over `adb` (USB debugging on, no other device or emulator on the same serial):
+
+```bash
+STORE_SHOTS_VIDEO=1 scripts/store-shots.sh --skip-build
+```
+
+That adds stream with chat, chat with zaps and the landscape player. The Play phone set holds 8 shots at most, so drop one of the others before uploading.
 
 ## Apple
 

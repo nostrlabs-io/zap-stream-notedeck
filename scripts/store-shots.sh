@@ -126,6 +126,7 @@ scenes() {
   stream=$(python3 "$root/scripts/store_shots_pick.py")
   naddr=$(python3 -c "import json,sys;print(json.loads(sys.argv[1])['naddr'])" "$stream")
   host=$(python3 -c "import json,sys;print(json.loads(sys.argv[1])['host'])" "$stream")
+  profile=$(python3 -c "import json,sys;print(json.loads(sys.argv[1])['profile'])" "$stream")
   status=$(python3 -c "import json,sys;print(json.loads(sys.argv[1])['status'])" "$stream")
   echo "stream $status: $stream"
   echo "$stream" > "$out/play/$dir/stream.json"
@@ -165,18 +166,18 @@ scenes() {
   sleep 12
   want category && shot "$dir" 06-category
 
-  open_page search:radio
-  need "radio" 30
+  open_page search:music
+  need "Categories" 30
   sleep 10
   want search && shot "$dir" 07-search
 
-  open_page "profile:$host"
+  open_page "profile:$profile"
   sleep 12
   want profile && shot "$dir" 08-profile
 
   app_files "echo ja > files/settings/zap_locale"
   start_app
-  sleep 30
+  sleep 60
   want language && shot "$dir" 09-japanese
   app_files "rm -f files/settings/zap_locale"
 
@@ -204,7 +205,7 @@ run_set() {
 }
 
 [ $build = 1 ] && build_apk
-rm -rf "$out/play" "$out/play-captioned"
+[ -n "$only" ] || rm -rf "$out/play" "$out/play-captioned"
 mkdir -p "$out/play"
 
 run_set zs_phone pixel_7 1080x1920 420 phone
