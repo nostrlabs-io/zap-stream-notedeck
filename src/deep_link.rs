@@ -64,9 +64,28 @@ pub fn take_pending(dir: &std::path::Path) -> Option<DeepLink> {
     parse(&text)
 }
 
+#[cfg(feature = "store-shots")]
+pub fn take_pending_page(dir: &std::path::Path) -> Option<String> {
+    let path = dir.join("pending_page");
+    let text = std::fs::read_to_string(&path).ok()?;
+    let _ = std::fs::remove_file(&path);
+    Some(text.trim().to_string()).filter(|t| !t.is_empty())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(feature = "store-shots")]
+    #[test]
+    fn pending_page_is_read_once_and_removed() {
+        let dir = std::env::temp_dir().join(format!("zs-pending-page-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("pending_page"), "categories\n").unwrap();
+        assert_eq!(take_pending_page(&dir).as_deref(), Some("categories"));
+        assert_eq!(take_pending_page(&dir), None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
     use nostr::nips::nip19::ToBech32;
     use nostr::prelude::Coordinate;
     use nostr::{Keys, Kind};

@@ -168,7 +168,12 @@ impl ZapStreamApp {
             .and_then(|u| crate::deep_link::parse(&u));
         if link.is_none() && self.last_link_poll.elapsed() >= std::time::Duration::from_millis(500) {
             self.last_link_poll = std::time::Instant::now();
-            link = crate::deep_link::take_pending(&ctx.path.path(notedeck::DataPathType::Setting));
+            let settings_dir = ctx.path.path(notedeck::DataPathType::Setting);
+            link = crate::deep_link::take_pending(&settings_dir);
+            #[cfg(feature = "store-shots")]
+            if self.startup_page.is_none() {
+                self.startup_page = crate::deep_link::take_pending_page(&settings_dir);
+            }
         }
         match link {
             Some(crate::deep_link::DeepLink::Stream(link)) => {
