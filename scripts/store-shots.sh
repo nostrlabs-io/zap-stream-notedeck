@@ -97,14 +97,20 @@ start_app() {
   adbs shell am start -n $activity >/dev/null
 }
 
-open_page() { app_files "echo $1 > files/settings/pending_page"; }
+open_page() {
+  app_files "echo $1 > files/settings/pending_page"
+  for _ in 1 2 3 4; do
+    adbs shell input swipe 3 3 4 4 60
+    sleep 1
+  done
+}
 
 open_link() { adbs shell am start -a android.intent.action.VIEW -d "nostr:$1" $pkg >/dev/null; }
 
 shot() {
   dir=$1 name=$2
   mkdir -p "$out/play/$dir"
-  adbs exec-out screencap -p > "$out/play/$dir/$name.png"
+  adbs exec-out screencap -p | python3 -c "import io,sys;from PIL import Image;Image.open(io.BytesIO(sys.stdin.buffer.read())).convert('RGB').save(sys.argv[1])" "$out/play/$dir/$name.png"
 }
 
 need() {
@@ -127,10 +133,11 @@ scenes() {
   want() { [ -z "$only" ] || [ "$only" = "$1" ]; }
 
   start_app
-  need "watching" 60
-  sleep 6
+  need "Zapped" 60
+  sleep 40
   want home && shot "$dir" 01-home
 
+  if [ -n "${STORE_SHOTS_VIDEO:-}" ]; then
   open_link "$naddr"
   need "watching" 60
   need "zapped" 60
@@ -147,6 +154,7 @@ scenes() {
   want landscape && shot "$dir" 04-landscape-player
   adbs shell settings put system user_rotation 0
   sleep 4
+  fi
 
   open_page categories
   need "Music" 40
@@ -196,7 +204,7 @@ run_set() {
 }
 
 [ $build = 1 ] && build_apk
-rm -rf "$out/play"
+rm -rf "$out/play" "$out/play-captioned"
 mkdir -p "$out/play"
 
 run_set zs_phone pixel_7 1080x1920 420 phone

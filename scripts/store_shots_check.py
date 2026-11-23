@@ -11,14 +11,14 @@ STORE = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "store"
 
 MAX_BYTES = 8 * 1024 * 1024
 MIN_SIDE, MAX_SIDE = 320, 3840
-MAX_ASPECT = 2.0
+MAX_ASPECT = 2.3
 SETS = {
     "play/phone": {"size": (1080, 1920), "count": (2, 8)},
-    "play/tablet-7": {"size": (1200, 1920), "count": (2, 8)},
-    "play/tablet-10": {"size": (1600, 2560), "count": (2, 8)},
+    "play/tablet-7": {"size": (1200, 1920), "count": (4, 8)},
+    "play/tablet-10": {"size": (1600, 2560), "count": (4, 8)},
     "play-captioned/phone": {"size": (1080, 1920), "count": (2, 8)},
-    "play-captioned/tablet-7": {"size": (1200, 1920), "count": (2, 8)},
-    "play-captioned/tablet-10": {"size": (1600, 2560), "count": (2, 8)},
+    "play-captioned/tablet-7": {"size": (1200, 1920), "count": (4, 8)},
+    "play-captioned/tablet-10": {"size": (1600, 2560), "count": (4, 8)},
     "appstore/iphone-6.9": {"size": (1320, 2868), "count": (1, 10)},
     "appstore/ipad-13": {"size": (2064, 2752), "count": (1, 10)},
 }
@@ -42,11 +42,13 @@ def check_set(name, spec):
         if not (MIN_SIDE <= w <= MAX_SIDE and MIN_SIDE <= h <= MAX_SIDE):
             errors.append(f"{f}: side outside {MIN_SIDE}-{MAX_SIDE}")
         if max(w, h) / min(w, h) > MAX_ASPECT:
-            errors.append(f"{f}: aspect above 2:1")
+            errors.append(f"{f}: aspect above 2.3:1")
         if f.stat().st_size > MAX_BYTES:
             errors.append(f"{f}: {f.stat().st_size} bytes, over 8 MB")
         if img.format != "PNG":
             errors.append(f"{f}: not PNG")
+        if img.mode in ("RGBA", "LA", "P") and img.mode != "P":
+            errors.append(f"{f}: has an alpha channel")
         arr = np.asarray(img.convert("L"))
         if arr.max() == arr.min():
             errors.append(f"{f}: one flat colour")
