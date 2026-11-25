@@ -12,15 +12,18 @@ use egui::{
 use nostrdb::{Filter, Note};
 use std::collections::HashSet;
 
-pub fn matches_query(title: &str, summary: &str, tags: &[String], host_name: &str, q: &str) -> bool {
-    let q = q.trim().to_lowercase();
-    if q.is_empty() {
-        return false;
-    }
-    title.to_lowercase().contains(&q)
-        || summary.to_lowercase().contains(&q)
-        || host_name.to_lowercase().contains(&q)
-        || tags.iter().any(|t| t.contains(&q))
+pub const MAX_PROFILES: usize = 12;
+
+pub fn rank_streams<T>(mut items: Vec<(u32, u64, T)>) -> Vec<T> {
+    items.retain(|(s, _, _)| *s > 0);
+    items.sort_by(|a, b| b.0.cmp(&a.0).then(b.1.cmp(&a.1)));
+    items.into_iter().map(|(_, _, t)| t).collect()
+}
+
+pub fn rank_profiles<T>(mut items: Vec<(u32, T)>, limit: usize) -> Vec<T> {
+    items.retain(|(s, _)| *s > 0);
+    items.sort_by(|a, b| b.0.cmp(&a.0));
+    items.into_iter().take(limit).map(|(_, t)| t).collect()
 }
 
 fn text_score(text: &str, q: &str, exact: u32, prefix: u32, inner: u32) -> u32 {
@@ -162,7 +165,7 @@ impl NostrWidget for SearchPage {
                             });
                         }
 
-                        let mut events: Vec<(u32, Note)> = Vec::new();
+                        let mut scored: Vec<(u32, u64, Note)> = Vec::new();
                         for r in &self.events {
                             if let Ok(n) = services.ctx.ndb.get_note_by_key(services.tx, r.key) {
                                 let host = *n.host();
@@ -177,47 +180,47 @@ impl NostrWidget for SearchPage {
                                     &host_name,
                                     &self.query,
                                 );
-                                if score > 0 {
-                                    events.push((score, n));
-                                }
+                                scored.push((score, n.created_at(), n));
                             }
                         }
-                        events.sort_by(|a, b| {
-                            b.0.cmp(&a.0)
-                                .then(b.1.created_at().cmp(&a.1.created_at()))
-                        });
+                        let events: Vec<Note> = rank_streams(scored);
                         Self::heading(ui, crate::i18n::t("nav.streams"));
                         if events.is_empty() {
                             ui.label(theme::medium(crate::i18n::t("listing.empty"), 15.0).color(MUTED));
                         }
                         StreamList::new(
                             Id::new("search-streams"),
-                            NotesView::from_vec(events.iter().map(|(_, n)| n).collect()),
+                            NotesView::from_vec(events.iter().collect()),
                             None::<RichText>,
                         )
                         .render(ui, services);
 
-                        let mut profiles: Vec<(u32, [u8; 32])> = services
-                            .ctx
-                            .ndb
-                            .search_profile(services.tx, &self.query, 60)
-                            .map(|v| v.into_iter().copied().collect::<Vec<[u8; 32]>>())
-                            .unwrap_or_default()
-                            .into_iter()
-                            .filter_map(|pk| {
-                                let p = services.profile(&pk)?;
-                                let score = profile_relevance(
-                                    &[p.display_name().unwrap_or(""), p.name().unwrap_or("")],
-                                    &self.query,
-                                );
-                                (score > 0).then_some((score, pk))
-                            })
-                            .collect();
-                        profiles.sort_by(|a, b| b.0.cmp(&a.0));
-                        profiles.truncate(12);
+                        let profiles: Vec<[u8; 32]> = rank_profiles(
+                            services
+                                .ctx
+                                .ndb
+                                .search_profile(services.tx, &self.query, 60)
+                                .map(|v| v.into_iter().copied().collect::<Vec<[u8; 32]>>())
+                                .unwrap_or_default()
+                                .into_iter()
+                                .map(|pk| {
+                                    let score = services
+                                        .profile(&pk)
+                                        .map(|p| {
+                                            profile_relevance(
+                                                &[p.display_name().unwrap_or(""), p.name().unwrap_or("")],
+                                                &self.query,
+                                            )
+                                        })
+                                        .unwrap_or(0);
+                                    (score, pk)
+                                })
+                                .collect(),
+                            MAX_PROFILES,
+                        );
                         if !profiles.is_empty() {
                             Self::heading(ui, crate::i18n::t("search.profiles"));
-                            for (_, pk) in profiles {
+                            for pk in profiles {
                                 let profile = services.profile(&pk);
                                 let r = ui
                                     .horizontal(|ui| {
@@ -262,13 +265,43 @@ mod tests {
     use super::*;
 
     #[test]
-    fn matches_title_tag_and_host() {
-        let tags = vec!["gaming".to_string()];
-        assert!(matches_query("Speedrun Night", "", &tags, "alice", "speed"));
-        assert!(matches_query("x", "", &tags, "alice", "GAM"));
-        assert!(matches_query("x", "", &tags, "Alice", "alic"));
-        assert!(!matches_query("x", "y", &tags, "alice", "zzz"));
-        assert!(!matches_query("x", "y", &tags, "alice", "  "));
+    fn streams_sort_by_score_then_newest_and_drop_zero() {
+        let ranked = rank_streams(vec![(10, 900, "summary"), (0, 999, "none"), (70, 1, "old title"), (70, 5, "new title"), (40, 3, "host")]);
+        assert_eq!(ranked, vec!["new title", "old title", "host", "summary"]);
+    }
+
+    #[test]
+    fn tag_beats_host_beats_summary() {
+        let tags = vec!["lofi".to_string()];
+        let none: Vec<String> = vec![];
+        let tag = relevance("x", "", &tags, "bob", "lofi");
+        let host = relevance("x", "", &none, "lofi", "lofi");
+        let summary = relevance("x", "lofi", &none, "bob", "lofi");
+        assert!(tag > host && host > summary);
+    }
+
+    #[test]
+    fn profiles_exact_then_prefix_then_substring() {
+        let q = "goat";
+        let ranked = rank_profiles(
+            vec![
+                (profile_relevance(&["the goat"], q), "sub"),
+                (profile_relevance(&["goatee"], q), "prefix"),
+                (profile_relevance(&["GOAT"], q), "exact"),
+                (profile_relevance(&["gunson"], q), "none"),
+            ],
+            MAX_PROFILES,
+        );
+        assert_eq!(ranked, vec!["exact", "prefix", "sub"]);
+    }
+
+    #[test]
+    fn profiles_cut_after_sorting() {
+        let mut items: Vec<(u32, usize)> = (0..13).map(|i| (50, i)).collect();
+        items[12].0 = 100;
+        let ranked = rank_profiles(items, MAX_PROFILES);
+        assert_eq!(ranked.len(), MAX_PROFILES);
+        assert_eq!(ranked[0], 12);
     }
 
     #[test]
