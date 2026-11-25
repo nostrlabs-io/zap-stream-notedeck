@@ -23,6 +23,52 @@ pub fn matches_query(title: &str, summary: &str, tags: &[String], host_name: &st
         || tags.iter().any(|t| t.contains(&q))
 }
 
+fn text_score(text: &str, q: &str, exact: u32, prefix: u32, inner: u32) -> u32 {
+    let t = text.to_lowercase();
+    if t == q {
+        exact
+    } else if t.starts_with(q) {
+        prefix
+    } else if t.contains(q) {
+        inner
+    } else {
+        0
+    }
+}
+
+pub fn relevance(title: &str, summary: &str, tags: &[String], host_name: &str, q: &str) -> u32 {
+    let q = q.trim().to_lowercase();
+    if q.is_empty() {
+        return 0;
+    }
+    let tag = tags
+        .iter()
+        .map(|t| text_score(t, &q, 80, 50, 30))
+        .max()
+        .unwrap_or(0);
+    [
+        text_score(title, &q, 100, 90, 70),
+        tag,
+        text_score(host_name, &q, 60, 55, 40),
+        text_score(summary, &q, 10, 10, 10),
+    ]
+    .into_iter()
+    .max()
+    .unwrap_or(0)
+}
+
+pub fn profile_relevance(names: &[&str], q: &str) -> u32 {
+    let q = q.trim().to_lowercase();
+    if q.is_empty() {
+        return 0;
+    }
+    names
+        .iter()
+        .map(|n| text_score(n, &q, 100, 80, 50))
+        .max()
+        .unwrap_or(0)
+}
+
 pub fn matching_categories(q: &str) -> Vec<(&'static str, &'static str)> {
     let q = q.trim().to_lowercase();
     if q.is_empty() {
@@ -116,15 +162,62 @@ impl NostrWidget for SearchPage {
                             });
                         }
 
-                        let profiles: Vec<[u8; 32]> = services
+                        let mut events: Vec<(u32, Note)> = Vec::new();
+                        for r in &self.events {
+                            if let Ok(n) = services.ctx.ndb.get_note_by_key(services.tx, r.key) {
+                                let host = *n.host();
+                                let host_name = services
+                                    .profile(&host)
+                                    .and_then(|p| p.name().map(str::to_string))
+                                    .unwrap_or_default();
+                                let score = relevance(
+                                    n.title().unwrap_or(""),
+                                    n.summary().unwrap_or(""),
+                                    &n.hashtags(),
+                                    &host_name,
+                                    &self.query,
+                                );
+                                if score > 0 {
+                                    events.push((score, n));
+                                }
+                            }
+                        }
+                        events.sort_by(|a, b| {
+                            b.0.cmp(&a.0)
+                                .then(b.1.created_at().cmp(&a.1.created_at()))
+                        });
+                        Self::heading(ui, crate::i18n::t("nav.streams"));
+                        if events.is_empty() {
+                            ui.label(theme::medium(crate::i18n::t("listing.empty"), 15.0).color(MUTED));
+                        }
+                        StreamList::new(
+                            Id::new("search-streams"),
+                            NotesView::from_vec(events.iter().map(|(_, n)| n).collect()),
+                            None::<RichText>,
+                        )
+                        .render(ui, services);
+
+                        let mut profiles: Vec<(u32, [u8; 32])> = services
                             .ctx
                             .ndb
-                            .search_profile(services.tx, &self.query, 12)
-                            .map(|v| v.into_iter().copied().collect())
-                            .unwrap_or_default();
+                            .search_profile(services.tx, &self.query, 60)
+                            .map(|v| v.into_iter().copied().collect::<Vec<[u8; 32]>>())
+                            .unwrap_or_default()
+                            .into_iter()
+                            .filter_map(|pk| {
+                                let p = services.profile(&pk)?;
+                                let score = profile_relevance(
+                                    &[p.display_name().unwrap_or(""), p.name().unwrap_or("")],
+                                    &self.query,
+                                );
+                                (score > 0).then_some((score, pk))
+                            })
+                            .collect();
+                        profiles.sort_by(|a, b| b.0.cmp(&a.0));
+                        profiles.truncate(12);
                         if !profiles.is_empty() {
                             Self::heading(ui, crate::i18n::t("search.profiles"));
-                            for pk in profiles {
+                            for (_, pk) in profiles {
                                 let profile = services.profile(&pk);
                                 let r = ui
                                     .horizontal(|ui| {
@@ -148,36 +241,6 @@ impl NostrWidget for SearchPage {
                                 }
                             }
                         }
-
-                        let mut events: Vec<Note> = Vec::new();
-                        for r in &self.events {
-                            if let Ok(n) = services.ctx.ndb.get_note_by_key(services.tx, r.key) {
-                                let host = *n.host();
-                                let host_name = services
-                                    .profile(&host)
-                                    .and_then(|p| p.name().map(str::to_string))
-                                    .unwrap_or_default();
-                                if matches_query(
-                                    n.title().unwrap_or(""),
-                                    n.summary().unwrap_or(""),
-                                    &n.hashtags(),
-                                    &host_name,
-                                    &self.query,
-                                ) {
-                                    events.push(n);
-                                }
-                            }
-                        }
-                        Self::heading(ui, crate::i18n::t("nav.streams"));
-                        if events.is_empty() {
-                            ui.label(theme::medium(crate::i18n::t("listing.empty"), 15.0).color(MUTED));
-                        }
-                        StreamList::new(
-                            Id::new("search-streams"),
-                            NotesView::from_vec(events.iter().collect()),
-                            None::<RichText>,
-                        )
-                        .render(ui, services);
                     });
             });
         ui.response()
@@ -206,6 +269,22 @@ mod tests {
         assert!(matches_query("x", "", &tags, "Alice", "alic"));
         assert!(!matches_query("x", "y", &tags, "alice", "zzz"));
         assert!(!matches_query("x", "y", &tags, "alice", "  "));
+    }
+
+    #[test]
+    fn title_match_outranks_summary_and_host() {
+        let none: Vec<String> = vec![];
+        let title = relevance("Lofi beats", "", &none, "bob", "lofi");
+        let host = relevance("x", "", &none, "lofi bob", "lofi");
+        let summary = relevance("x", "chill lofi", &none, "bob", "lofi");
+        assert!(title > host && host > summary && summary > 0);
+        assert_eq!(relevance("x", "y", &none, "bob", "lofi"), 0);
+    }
+
+    #[test]
+    fn profiles_without_query_in_name_score_zero() {
+        assert_eq!(profile_relevance(&["godsdeth", "Gunson"], "goat"), 0);
+        assert!(profile_relevance(&["goat"], "goat") > profile_relevance(&["the goat"], "goat"));
     }
 
     #[test]
