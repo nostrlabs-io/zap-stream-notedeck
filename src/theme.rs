@@ -73,11 +73,45 @@ fn load_colour_emoji() -> Option<Vec<u8>> {
         .find_map(|p| std::fs::read(p).ok())
 }
 
-pub fn font_definitions() -> egui::FontDefinitions {
-    font_definitions_with(load_colour_emoji())
+const SYMBOL_FONT_PATHS: [(&str, &[&str]); 2] = [
+    (
+        "symbols-1",
+        &[
+            "/system/fonts/NotoSansSymbols-Regular-Subsetted.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSansSymbols-Regular.ttf",
+            "/usr/share/fonts/noto/NotoSansSymbols-Regular.ttf",
+        ],
+    ),
+    (
+        "symbols-2",
+        &[
+            "/system/fonts/NotoSansSymbols2-Regular.ttf",
+            "/usr/share/fonts/truetype/noto/NotoSansSymbols2-Regular.ttf",
+            "/usr/share/fonts/noto/NotoSansSymbols2-Regular.ttf",
+        ],
+    ),
+];
+
+fn load_symbol_fonts() -> Vec<(String, Vec<u8>)> {
+    SYMBOL_FONT_PATHS
+        .iter()
+        .filter_map(|(name, paths)| {
+            paths
+                .iter()
+                .find_map(|p| std::fs::read(p).ok())
+                .map(|bytes| (name.to_string(), bytes))
+        })
+        .collect()
 }
 
-fn font_definitions_with(colour_emoji: Option<Vec<u8>>) -> egui::FontDefinitions {
+pub fn font_definitions() -> egui::FontDefinitions {
+    font_definitions_with(load_colour_emoji(), load_symbol_fonts())
+}
+
+fn font_definitions_with(
+    colour_emoji: Option<Vec<u8>>,
+    symbol_fonts: Vec<(String, Vec<u8>)>,
+) -> egui::FontDefinitions {
     let mut fd = egui::FontDefinitions::default();
     let load = |fd: &mut egui::FontDefinitions, name: &str, bytes: &'static [u8]| {
         fd.font_data
@@ -122,11 +156,20 @@ fn font_definitions_with(colour_emoji: Option<Vec<u8>>) -> egui::FontDefinitions
         fd.font_data
             .insert(COLOUR_EMOJI.to_string(), Arc::new(egui::FontData::from_owned(bytes)));
     }
+    let symbol_names = symbol_fonts
+        .into_iter()
+        .map(|(name, bytes)| {
+            fd.font_data
+                .insert(name.clone(), Arc::new(egui::FontData::from_owned(bytes)));
+            name
+        })
+        .collect::<Vec<_>>();
     let with_fallback = |first: &str| {
         let mut v = vec![first.to_string()];
         if has_colour {
             v.push(COLOUR_EMOJI.to_string());
         }
+        v.extend(symbol_names.iter().cloned());
         v.extend(fallback.iter().cloned());
         v
     };
@@ -202,10 +245,46 @@ mod tests {
 
     #[test]
     fn colour_emoji_font_precedes_system_fallbacks() {
-        let fd = font_definitions_with(Some(vec![0]));
+        let fd = font_definitions_with(Some(vec![0]), Vec::new());
         for fonts in fd.families.values().filter(|f| f.iter().any(|n| n == "Hack") == false) {
             assert_eq!(fonts[1], COLOUR_EMOJI);
         }
+    }
+
+    #[test]
+    fn symbol_fonts_follow_colour_emoji_in_every_family() {
+        let fd = font_definitions_with(
+            Some(vec![0]),
+            vec![("symbols-1".into(), vec![0]), ("symbols-2".into(), vec![0])],
+        );
+        for fonts in fd.families.values().filter(|f| f.iter().any(|n| n == "InstrumentSans-Regular" || n.starts_with("Bricolage") || n.starts_with("InstrumentSans"))) {
+            assert_eq!(fonts[1], COLOUR_EMOJI);
+            assert_eq!(fonts[2], "symbols-1");
+            assert_eq!(fonts[3], "symbols-2");
+        }
+    }
+
+    #[test]
+    fn dingbat_resolves_to_a_system_font() {
+        let loaded = load_symbol_fonts();
+        if loaded.is_empty() {
+            return;
+        }
+        let covers = loaded.iter().any(|(_, bytes)| {
+            ttf_has_glyph(bytes, '\u{274B}')
+        });
+        assert!(covers, "no symbol font covers U+274B");
+    }
+
+    fn ttf_has_glyph(bytes: &[u8], c: char) -> bool {
+        let data = egui::FontData::from_owned(bytes.to_vec());
+        let mut fd = egui::FontDefinitions::empty();
+        fd.font_data.insert("f".into(), Arc::new(data));
+        fd.families.insert(FontFamily::Proportional, vec!["f".into()]);
+        let ctx = egui::Context::default();
+        ctx.set_fonts(fd);
+        let _ = ctx.run_ui(Default::default(), |_| {});
+        ctx.fonts_mut(|f| f.has_glyph(&FontId::proportional(14.0), c))
     }
 
     #[test]
