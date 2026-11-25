@@ -264,27 +264,41 @@ mod tests {
         }
     }
 
-    #[test]
-    fn dingbat_resolves_to_a_system_font() {
-        let loaded = load_symbol_fonts();
-        if loaded.is_empty() {
-            return;
-        }
-        let covers = loaded.iter().any(|(_, bytes)| {
-            ttf_has_glyph(bytes, '\u{274B}')
-        });
-        assert!(covers, "no symbol font covers U+274B");
+    const DINGBAT_FIXTURE: &[u8] = include_bytes!("../assets/test/NotoSansSymbols-274B.ttf");
+
+    fn dingbat_fonts() -> Vec<(String, Vec<u8>)> {
+        vec![("symbols-1".to_string(), DINGBAT_FIXTURE.to_vec())]
     }
 
-    fn ttf_has_glyph(bytes: &[u8], c: char) -> bool {
-        let data = egui::FontData::from_owned(bytes.to_vec());
-        let mut fd = egui::FontDefinitions::empty();
-        fd.font_data.insert("f".into(), Arc::new(data));
-        fd.families.insert(FontFamily::Proportional, vec!["f".into()]);
+    fn glyph_resolves(fd: egui::FontDefinitions, family: FontFamily, c: char) -> bool {
         let ctx = egui::Context::default();
         ctx.set_fonts(fd);
-        let _ = ctx.run_ui(Default::default(), |_| {});
-        ctx.fonts_mut(|f| f.has_glyph(&FontId::proportional(14.0), c))
+        let mut output = ctx.run_ui(Default::default(), |_| {});
+        output.textures_delta.clear();
+        ctx.fonts_mut(|f| f.has_glyph(&FontId::new(14.0, family), c))
+    }
+
+    #[test]
+    fn dingbat_resolves_to_a_symbol_font_in_every_family() {
+        for family in [
+            FontFamily::Proportional,
+            medium_family(),
+            semibold_family(),
+            display_bold(),
+            display_family(),
+        ] {
+            let fd = font_definitions_with(None, dingbat_fonts());
+            assert!(
+                glyph_resolves(fd, family.clone(), '\u{274B}'),
+                "{family:?} has no glyph for U+274B"
+            );
+        }
+    }
+
+    #[test]
+    fn dingbat_is_missing_without_a_symbol_font() {
+        let fd = font_definitions_with(None, Vec::new());
+        assert!(!glyph_resolves(fd, FontFamily::Proportional, '\u{274B}'));
     }
 
     #[test]
