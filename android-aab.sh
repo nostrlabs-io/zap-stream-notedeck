@@ -14,3 +14,4 @@ echo "sdk.dir=$ANDROID_HOME" > android/local.properties
 cd android
 ./gradlew :app:bundleRelease
 echo android/app/build/outputs/bundle/release/app-release.aab
+echo android/app/build/outputs/mapping/release/mapping.txt

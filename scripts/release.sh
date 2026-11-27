@@ -32,7 +32,10 @@ mkdir -p dist
 apk=dist/zap_stream-$tag-android-arm64.apk
 aab=dist/zap_stream-$tag-android.aab
 cp android/app/build/outputs/apk/release/app-release.apk "$apk"
+mapping=dist/zap_stream-$tag-android-mapping.txt
 cp android/app/build/outputs/bundle/release/app-release.aab "$aab"
+cp android/app/build/outputs/mapping/release/mapping.txt "$mapping"
 (cd dist && sha256sum "$(basename "$apk")" "$(basename "$aab")" | tee "zap_stream-$tag-android.sha256")
 echo "$apk"
 echo "$aab"
+echo "$mapping"
