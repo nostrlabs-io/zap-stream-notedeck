@@ -1,37 +1,63 @@
-# ProGuard rules for lumina-video demo application
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
-
-# Keep native methods (JNI callbacks from Rust)
--keepclasseswithmembernames class * {
+-keep class stream.zap.app.MainActivity {
+    boolean openUrl(java.lang.String);
+    java.lang.String getClipboardText();
+    void setClipboardText(java.lang.String);
+    boolean amberRequest(java.lang.String);
+    void scheduleLiveCheck(boolean);
+    void setNowPlaying(java.lang.String, java.lang.String);
+    void setLandscapeFullscreen(boolean);
+    void enterPip();
     native <methods>;
 }
 
-# Keep ExoPlayerBridge for JNI access
--keep class com.luminavideo.bridge.ExoPlayerBridge {
-    *;
+-keep class stream.zap.app.Nip55Signer {
+    native <methods>;
 }
 
-# Keep MainActivity methods called from native code
--keep class com.luminavideo.demo.MainActivity {
-    com.luminavideo.bridge.ExoPlayerBridge getBridge();
-    androidx.media3.exoplayer.ExoPlayer getPlayer();
-    void playVideo(java.lang.String);
-    void pauseVideo();
-    void resumeVideo();
-    void seekTo(long);
-    long getCurrentPosition();
-    long getDuration();
-    boolean isPlaying();
+-keep class stream.zap.app.LiveCheckWorker {
+    public <init>(android.content.Context, androidx.work.WorkerParameters);
+    native <methods>;
 }
 
-# Keep Media3/ExoPlayer classes
--keep class androidx.media3.** { *; }
--dontwarn androidx.media3.**
+-keep class com.google.androidgamesdk.GameActivity {
+    void finish();
+    void setWindowFlags(int, int);
+    androidx.core.graphics.Insets getWindowInsets(int);
+    androidx.core.graphics.Insets getWaterfallInsets();
+    void setImeEditorInfoFields(int, int, int);
+    native <methods>;
+}
 
-# Keep GameActivity
--keep class com.google.androidgamesdk.GameActivity { *; }
+-keep class com.google.androidgamesdk.gametextinput.State {
+    <init>(java.lang.String, int, int, int, int);
+    java.lang.String text;
+    int selectionStart;
+    int selectionEnd;
+    int composingRegionStart;
+    int composingRegionEnd;
+}
 
-# Keep HardwareBuffer for zero-copy path
--keep class android.hardware.HardwareBuffer { *; }
+-keep class com.google.androidgamesdk.gametextinput.InputConnection {
+    void setState(com.google.androidgamesdk.gametextinput.State);
+    void setSoftKeyboardActive(boolean, int);
+    void restartInput();
+}
+
+-keep class androidx.core.graphics.Insets {
+    int left;
+    int top;
+    int right;
+    int bottom;
+}
+
+-keep class androidx.core.view.WindowInsetsCompat$Type {
+    public static int captionBar();
+    public static int displayCutout();
+    public static int ime();
+    public static int mandatorySystemGestures();
+    public static int navigationBars();
+    public static int statusBars();
+    public static int systemBars();
+    public static int systemGestures();
+    public static int tappableElement();
+}
