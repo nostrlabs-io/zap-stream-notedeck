@@ -7,7 +7,6 @@
 
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
 }
 
 val cargoVersion: String = rootProject.file("../Cargo.toml").readLines()
@@ -73,10 +72,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_1_8
     }
 
-    kotlinOptions {
-        jvmTarget = "1.8"
-    }
-
     // NDK configuration
     ndkVersion = "26.1.10909125"
 
@@ -130,7 +125,7 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.6.1")
     implementation("com.google.android.material:material:1.11.0")
     implementation("androidx.constraintlayout:constraintlayout:2.1.4")
-    implementation("androidx.work:work-runtime-ktx:2.9.1")
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
 
     // Testing
     testImplementation("junit:junit:4.13.2")
